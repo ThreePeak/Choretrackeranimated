@@ -135,6 +135,7 @@ export const WeeklyActivityGraph: React.FC<WeeklyActivityGraphProps> = ({ logs }
         <div className="flex justify-between items-stretch h-32 gap-2 w-full pt-4">
             {days.map((day, i) => {
                 const heightPct = maxVal > 0 ? (day.count / maxVal) * 100 : 0;
+                // Min height 10% or 2px if there's any data to show it exists
                 const finalHeight = day.count > 0 ? Math.max(heightPct, 10) : 2;
                 const isToday = i === 6;
                 
