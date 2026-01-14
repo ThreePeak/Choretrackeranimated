@@ -7,9 +7,18 @@ export const generateColor = (str: string): string => {
   return '#' + '00000'.substring(0, 6 - c.length) + c;
 };
 
+export const getTimestamp = (t: any): number => {
+    if (!t) return 0;
+    // Handle Firestore-like timestamp objects
+    if (typeof t.toDate === 'function') return t.toDate().getTime();
+    // Handle strings or Date objects
+    const d = new Date(t);
+    return isNaN(d.getTime()) ? 0 : d.getTime();
+};
+
 export const formatDate = (timestamp: any): string => {
   if (!timestamp) return '';
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const date = new Date(getTimestamp(timestamp));
   return new Intl.DateTimeFormat('en-US', {
     month: 'short', 
     day: 'numeric', 
@@ -20,7 +29,7 @@ export const formatDate = (timestamp: any): string => {
 
 export const getRelativeTime = (timestamp: any): string => {
   if (!timestamp) return 'Never';
-  const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+  const date = new Date(getTimestamp(timestamp));
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
@@ -31,12 +40,12 @@ export const getRelativeTime = (timestamp: any): string => {
 };
 
 export const getDayName = (dateInput: any): string => {
-    const date = dateInput.toDate ? dateInput.toDate() : new Date(dateInput);
+    const date = new Date(getTimestamp(dateInput));
     return new Intl.DateTimeFormat('en-US', { weekday: 'long' }).format(date);
 };
 
 export const getHour = (dateInput: any): number => {
-    const date = dateInput.toDate ? dateInput.toDate() : new Date(dateInput);
+    const date = new Date(getTimestamp(dateInput));
     return date.getHours();
 };
 
