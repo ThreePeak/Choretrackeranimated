@@ -35,9 +35,7 @@
       "createdAt": {
         "seconds": 1767814631,
         "nanoseconds": 68000000
-      },
-      "order": 0,
-      "category": "Pets"
+      }
     },
     {
       "id": "HYso3r7fOwcTHWKZsXrg",
@@ -45,9 +43,7 @@
       "createdAt": {
         "seconds": 1767814718,
         "nanoseconds": 688000000
-      },
-      "order": 1,
-      "category": "Bedroom & Laundry"
+      }
     },
     {
       "id": "QRD2H3CI8vT5BzwiQObk",
@@ -55,9 +51,7 @@
       "createdAt": {
         "seconds": 1767814820,
         "nanoseconds": 858000000
-      },
-      "order": 2,
-      "category": "Bathroom"
+      }
     },
     {
       "id": "RpGSjeWU5X6SWifyU87j",
@@ -65,9 +59,7 @@
         "seconds": 1767814757,
         "nanoseconds": 979000000
       },
-      "name": "Fold laundry",
-      "order": 3,
-      "category": "Bedroom & Laundry"
+      "name": "Fold laundry"
     },
     {
       "id": "SqBQOfYWk6qtLuzM62wg",
@@ -75,9 +67,7 @@
         "seconds": 1767814789,
         "nanoseconds": 926000000
       },
-      "name": "Clean toilet",
-      "order": 4,
-      "category": "Bathroom"
+      "name": "Clean toilet"
     },
     {
       "id": "VTdWUQH5J8VND8VH24dE",
@@ -85,9 +75,7 @@
         "seconds": 1767814631,
         "nanoseconds": 68000000
       },
-      "name": "Empty dishwasher",
-      "order": 5,
-      "category": "Kitchen"
+      "name": "Empty dishwasher"
     },
     {
       "id": "XDUqMG5TsjDMr03q6Hpq",
@@ -95,9 +83,7 @@
       "createdAt": {
         "seconds": 1767814732,
         "nanoseconds": 473000000
-      },
-      "order": 6,
-      "category": "Bedroom & Laundry"
+      }
     },
     {
       "id": "XH8e11kycvYc68nY0tIe",
@@ -105,9 +91,7 @@
       "createdAt": {
         "seconds": 1767814631,
         "nanoseconds": 68000000
-      },
-      "order": 7,
-      "category": "General"
+      }
     },
     {
       "id": "aXRWlLj6fhR5xUxxCZuP",
@@ -115,9 +99,7 @@
         "seconds": 1767814631,
         "nanoseconds": 68000000
       },
-      "name": "Mop",
-      "order": 8,
-      "category": "General"
+      "name": "Mop"
     },
     {
       "id": "fL0SuijXS9MmXInAyW9a",
@@ -125,9 +107,7 @@
       "createdAt": {
         "seconds": 1767814694,
         "nanoseconds": 500000000
-      },
-      "order": 9,
-      "category": "General"
+      }
     },
     {
       "id": "g49u8tXGGXkOuZschR4L",
@@ -135,9 +115,7 @@
         "seconds": 1767814631,
         "nanoseconds": 68000000
       },
-      "name": "Cat box",
-      "order": 10,
-      "category": "Pets"
+      "name": "Cat box"
     },
     {
       "id": "qi25rgn52iEouEOrL3sf",
@@ -145,9 +123,7 @@
       "createdAt": {
         "seconds": 1767814631,
         "nanoseconds": 68000000
-      },
-      "order": 11,
-      "category": "General"
+      }
     },
     {
       "id": "uKSZX4xgOO91zIXzUKjd",
@@ -155,9 +131,7 @@
         "seconds": 1767814798,
         "nanoseconds": 590000000
       },
-      "name": "Clean shower/tub",
-      "order": 12,
-      "category": "Bathroom"
+      "name": "Clean shower/tub"
     },
     {
       "id": "ufdsyAozw237Fxtg3VjY",
@@ -165,9 +139,7 @@
       "createdAt": {
         "seconds": 1767814631,
         "nanoseconds": 68000000
-      },
-      "order": 13,
-      "category": "Kitchen"
+      }
     },
     {
       "id": "wQ14T5rqpmx1GsXaWgBs",
@@ -175,25 +147,56 @@
         "seconds": 1767814631,
         "nanoseconds": 68000000
       },
-      "name": "Take out recycling",
-      "order": 14,
-      "category": "General"
+      "name": "Take out recycling"
     },
     {
       "id": "bxcbrsrrd",
       "name": "Dump run",
-      "createdAt": "2026-01-09T03:13:03.124Z",
-      "order": 15,
-      "category": "General"
+      "createdAt": "2026-01-09T03:13:03.124Z"
     }
   ],
   "logs": [
     {
-      "id": "ddlv4f58s",
-      "choreId": "VTdWUQH5J8VND8VH24dE",
+      "id": "9aeyxnfam",
+      "choreId": "bxcbrsrrd",
       "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2026-01-13T20:37:41.179Z",
-      "isManual": false
+      "timestamp": "2025-12-03T21:16:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "o60tbnsyl",
+      "choreId": "bxcbrsrrd",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-12T23:16:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "eag0rdgwu",
+      "choreId": "uKSZX4xgOO91zIXzUKjd",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-05T01:15:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "l9aarlxg5",
+      "choreId": "qi25rgn52iEouEOrL3sf",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-20T22:14:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "ixm1sun5n",
+      "choreId": "aXRWlLj6fhR5xUxxCZuP",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-21T00:13:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "ffr0779jj",
+      "choreId": "SqBQOfYWk6qtLuzM62wg",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-22T03:13:00.000Z",
+      "isManual": true
     },
     {
       "id": "885suq12u",
@@ -221,6 +224,125 @@
       "choreId": "VTdWUQH5J8VND8VH24dE",
       "memberId": "rmTmcbtFDonNFYYrMoK5",
       "timestamp": "2026-01-10T18:49:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "v9dvihbrg",
+      "choreId": "XH8e11kycvYc68nY0tIe",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-16T23:23:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "499ytu60x",
+      "choreId": "XH8e11kycvYc68nY0tIe",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-15T17:23:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "a025lcbik",
+      "choreId": "RpGSjeWU5X6SWifyU87j",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-19T19:22:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "qiyrsr5cg",
+      "choreId": "RpGSjeWU5X6SWifyU87j",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-06T20:21:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "kijzhtt0d",
+      "choreId": "RpGSjeWU5X6SWifyU87j",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-02T02:21:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "b9qyw1o8j",
+      "choreId": "XDUqMG5TsjDMr03q6Hpq",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-13T00:20:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "ebbitkk4h",
+      "choreId": "XDUqMG5TsjDMr03q6Hpq",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-01T19:20:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "spljxwb6q",
+      "choreId": "HYso3r7fOwcTHWKZsXrg",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-07T01:19:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "pmt3rtde6",
+      "choreId": "XH8e11kycvYc68nY0tIe",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2026-01-04T02:18:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "3ddmnlv2v",
+      "choreId": "5fdpwSG0q8gucT25wGTQ",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2026-01-04T21:16:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "8lhexcegd",
+      "choreId": "bxcbrsrrd",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-12T23:15:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "gjcs9oauk",
+      "choreId": "5fdpwSG0q8gucT25wGTQ",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-15T23:11:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "ktx2utmh0",
+      "choreId": "ufdsyAozw237Fxtg3VjY",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-22T19:11:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "q4vgerupc",
+      "choreId": "VTdWUQH5J8VND8VH24dE",
+      "memberId": "M4jlNBktNvd7oVlXUCRA",
+      "timestamp": "2025-12-12T00:08:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "acdmotuey",
+      "choreId": "VTdWUQH5J8VND8VH24dE",
+      "memberId": "rmTmcbtFDonNFYYrMoK5",
+      "timestamp": "2025-12-28T03:07:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "h87wnb840",
+      "choreId": "VTdWUQH5J8VND8VH24dE",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2025-12-03T23:07:00.000Z",
+      "isManual": true
+    },
+    {
+      "id": "xl89kzhth",
+      "choreId": "ufdsyAozw237Fxtg3VjY",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2026-01-05T02:06:00.000Z",
       "isManual": true
     },
     {
@@ -252,31 +374,10 @@
       "isManual": true
     },
     {
-      "id": "xl89kzhth",
-      "choreId": "ufdsyAozw237Fxtg3VjY",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2026-01-05T02:06:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "3ddmnlv2v",
-      "choreId": "5fdpwSG0q8gucT25wGTQ",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2026-01-04T21:16:00.000Z",
-      "isManual": true
-    },
-    {
       "id": "fQ4KvxAc8JQF0kPk8YGE",
       "timestamp": "2026-01-04T19:43:00.000Z",
       "choreId": "g49u8tXGGXkOuZschR4L",
       "memberId": "M4jlNBktNvd7oVlXUCRA",
-      "isManual": true
-    },
-    {
-      "id": "pmt3rtde6",
-      "choreId": "XH8e11kycvYc68nY0tIe",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2026-01-04T02:18:00.000Z",
       "isManual": true
     },
     {
@@ -301,102 +402,11 @@
       "choreId": "XDUqMG5TsjDMr03q6Hpq"
     },
     {
-      "id": "acdmotuey",
-      "choreId": "VTdWUQH5J8VND8VH24dE",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-28T03:07:00.000Z",
-      "isManual": true
-    },
-    {
       "id": "aZx69TjOoAHTww0hwDc6",
       "memberId": "rmTmcbtFDonNFYYrMoK5",
       "timestamp": "2025-12-22T19:41:00.000Z",
       "isManual": true,
       "choreId": "5fdpwSG0q8gucT25wGTQ"
-    },
-    {
-      "id": "ktx2utmh0",
-      "choreId": "ufdsyAozw237Fxtg3VjY",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-22T19:11:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "ffr0779jj",
-      "choreId": "SqBQOfYWk6qtLuzM62wg",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-22T03:13:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "ixm1sun5n",
-      "choreId": "aXRWlLj6fhR5xUxxCZuP",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-21T00:13:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "l9aarlxg5",
-      "choreId": "qi25rgn52iEouEOrL3sf",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-20T22:14:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "a025lcbik",
-      "choreId": "RpGSjeWU5X6SWifyU87j",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-19T19:22:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "v9dvihbrg",
-      "choreId": "XH8e11kycvYc68nY0tIe",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-16T23:23:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "gjcs9oauk",
-      "choreId": "5fdpwSG0q8gucT25wGTQ",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-15T23:11:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "499ytu60x",
-      "choreId": "XH8e11kycvYc68nY0tIe",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-15T17:23:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "b9qyw1o8j",
-      "choreId": "XDUqMG5TsjDMr03q6Hpq",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-13T00:20:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "o60tbnsyl",
-      "choreId": "bxcbrsrrd",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-12T23:16:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "8lhexcegd",
-      "choreId": "bxcbrsrrd",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-12T23:15:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "q4vgerupc",
-      "choreId": "VTdWUQH5J8VND8VH24dE",
-      "memberId": "M4jlNBktNvd7oVlXUCRA",
-      "timestamp": "2025-12-12T00:08:00.000Z",
-      "isManual": true
     },
     {
       "id": "EfHFSG9yC5UEYjCeXS6Z",
@@ -413,25 +423,11 @@
       "memberId": "fqfZoNWYRrytpfNjmcDm"
     },
     {
-      "id": "spljxwb6q",
-      "choreId": "HYso3r7fOwcTHWKZsXrg",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-07T01:19:00.000Z",
-      "isManual": true
-    },
-    {
       "id": "y02rcKb4aAl7JdmCEtmy",
       "choreId": "wQ14T5rqpmx1GsXaWgBs",
       "isManual": true,
       "timestamp": "2025-12-07T00:43:00.000Z",
       "memberId": "fqfZoNWYRrytpfNjmcDm"
-    },
-    {
-      "id": "qiyrsr5cg",
-      "choreId": "RpGSjeWU5X6SWifyU87j",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-06T20:21:00.000Z",
-      "isManual": true
     },
     {
       "id": "bHfCtCUDjGgBNZ7r6YGl",
@@ -446,41 +442,6 @@
       "choreId": "qi25rgn52iEouEOrL3sf",
       "timestamp": "2025-12-06T12:15:00.000Z",
       "memberId": "fqfZoNWYRrytpfNjmcDm"
-    },
-    {
-      "id": "eag0rdgwu",
-      "choreId": "uKSZX4xgOO91zIXzUKjd",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-05T01:15:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "h87wnb840",
-      "choreId": "VTdWUQH5J8VND8VH24dE",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-03T23:07:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "9aeyxnfam",
-      "choreId": "bxcbrsrrd",
-      "memberId": "fqfZoNWYRrytpfNjmcDm",
-      "timestamp": "2025-12-03T21:16:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "kijzhtt0d",
-      "choreId": "RpGSjeWU5X6SWifyU87j",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-02T02:21:00.000Z",
-      "isManual": true
-    },
-    {
-      "id": "ebbitkk4h",
-      "choreId": "XDUqMG5TsjDMr03q6Hpq",
-      "memberId": "rmTmcbtFDonNFYYrMoK5",
-      "timestamp": "2025-12-01T19:20:00.000Z",
-      "isManual": true
     }
   ]
 }
