@@ -282,6 +282,46 @@ export const DailyBreakdownChart: React.FC<{ logs: ChoreLog[] }> = ({ logs }) =>
     );
 };
 
+interface HouseholdLevelProps {
+    totalXP: number;
+}
+
+export const HouseholdLevel: React.FC<HouseholdLevelProps> = ({ totalXP }) => {
+    const level = Math.floor(totalXP / 1000) + 1;
+    const progress = (totalXP % 1000) / 10; // 0 to 100 percentage within the 1000 XP bucket
+    const nextLevelXP = level * 1000;
+    
+    return (
+        <div className="w-full bg-gray-900/60 border border-gray-800 rounded-xl p-4 mb-6 relative overflow-hidden group">
+            <div className="absolute top-0 left-0 w-full h-1 bg-gray-800">
+                <motion.div 
+                    initial={{ width: 0 }}
+                    animate={{ width: `${progress}%` }}
+                    transition={{ duration: 1.5, type: "spring" }}
+                    className="h-full bg-gradient-to-r from-blue-500 via-purple-500 to-pink-500"
+                />
+            </div>
+            <div className="flex justify-between items-end">
+                <div>
+                    <div className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1">Household Level</div>
+                    <div className="text-3xl font-black text-white flex items-baseline gap-2">
+                        {level}
+                        <span className="text-sm font-medium text-gray-400">Rank</span>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="text-xs font-bold text-gray-400 mb-1">
+                        <span className="text-white">{Math.round(totalXP)}</span> <span className="text-gray-600">/</span> {nextLevelXP} XP
+                    </div>
+                    <div className="text-[10px] text-gray-600 font-mono">
+                        {Math.floor(1000 - (totalXP % 1000))} XP to Level {level + 1}
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 interface StatCardProps {
     icon: React.ReactNode;
     title: string;
