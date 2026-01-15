@@ -1,0 +1,20 @@
+export const MASTER_CHORES = [
+  { "id": "bxcbrsrrd", "name": "Dump run", "xp": 530, "estMinutes": 45, "category": "Outdoor" },
+  { "id": "mw2g482qv", "name": "Cook dinner for 2+ people", "xp": 470, "estMinutes": 40, "category": "Kitchen" },
+  { "id": "uKSZX4xgOO91zIXzUKjd", "name": "Clean shower/tub", "xp": 400, "estMinutes": 25, "category": "Bathroom" },
+  { "id": "ufdsyAozw237Fxtg3VjY", "name": "Load dishwasher", "xp": 310, "estMinutes": 18, "category": "Kitchen" },
+  { "id": "aXRWlLj6fhR5xUxxCZuP", "name": "Mop", "xp": 310, "estMinutes": 20, "category": "General" },
+  { "id": "1ond3afur", "name": "Sort recycling", "xp": 295, "estMinutes": 20, "category": "General" },
+  { "id": "qi25rgn52iEouEOrL3sf", "name": "Vacuum", "xp": 270, "estMinutes": 20, "category": "General" },
+  { "id": "SqBQOfYWk6qtLuzM62wg", "name": "Clean toilet", "xp": 255, "estMinutes": 10, "category": "Bathroom" },
+  { "id": "5fdpwSG0q8gucT25wGTQ", "name": "Dog poop", "xp": 240, "estMinutes": 10, "category": "Pets" },
+  { "id": "fL0SuijXS9MmXInAyW9a", "name": "Make Brunch for 2+", "xp": 235, "estMinutes": 18, "category": "Kitchen" },
+  { "id": "HYso3r7fOwcTHWKZsXrg", "name": "Wash bedding", "xp": 220, "estMinutes": 15, "category": "Bedroom & Laundry" },
+  { "id": "QRD2H3CI8vT5BzwiQObk", "name": "Clean bathroom sink /counter", "xp": 205, "estMinutes": 10, "category": "Bathroom" },
+  { "id": "g49u8tXGGXkOuZschR4L", "name": "Cat box", "xp": 190, "estMinutes": 5, "category": "Pets" },
+  { "id": "RpGSjeWU5X6SWifyU87j", "name": "Fold laundry", "xp": 190, "estMinutes": 15, "category": "Bedroom & Laundry" },
+  { "id": "XH8e11kycvYc68nY0tIe", "name": "Take out garbage", "xp": 180, "estMinutes": 5, "category": "Outdoor" },
+  { "id": "XDUqMG5TsjDMr03q6Hpq", "name": "Mixed laundry load", "xp": 155, "estMinutes": 10, "category": "Bedroom & Laundry" },
+  { "id": "VTdWUQH5J8VND8VH24dE", "name": "Empty dishwasher", "xp": 150, "estMinutes": 11, "category": "Kitchen" },
+  { "id": "wQ14T5rqpmx1GsXaWgBs", "name": "Take out recycling", "xp": 130, "estMinutes": 5, "category": "Outdoor" }
+];
