@@ -35,7 +35,7 @@ import {
   DollarSign
 } from 'lucide-react';
 import { Member, Chore, ChoreLog, AppView, DistributionItem } from './types';
-import { generateColor, formatDate, getRelativeTime, getDayName, getHour, estimateChoreDuration, getChoreCategory, formatDuration } from './utils';
+import { generateColor, formatDate, getRelativeTime, getDayName, getHour, estimateChoreDuration, getChoreCategory, formatDuration, predictChoreValues } from './utils';
 import { DistributionBar, DonutChart, WeeklyActivityGraph, VerticalBarChart, StatCard, MiniContributionBar, DayOfWeekChart } from './components/Charts';
 import { PROJECT_FILES } from './projectFiles';
 
@@ -104,10 +104,17 @@ const App: React.FC = () => {
   const handleAddChore = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChoreName.trim()) return;
+    
+    // Smart Prediction Logic
+    const { xp, estMinutes, category } = predictChoreValues(newChoreName.trim());
+
     const newChore: Chore = {
       id: Math.random().toString(36).substr(2, 9),
       name: newChoreName.trim(),
-      createdAt: new Date()
+      createdAt: new Date(),
+      category,
+      xp,
+      estMinutes
     };
     setChores([...chores, newChore]);
     setNewChoreName('');
@@ -302,7 +309,7 @@ const App: React.FC = () => {
 
     logs.forEach(log => {
         const chore = chores.find(c => c.id === log.choreId);
-        const estDuration = chore ? estimateChoreDuration(chore.name) : 10;
+        const estDuration = chore ? chore.estMinutes || estimateChoreDuration(chore.name) : 10;
         
         countsByMember[log.memberId] = (countsByMember[log.memberId] || 0) + 1;
         totalMinutesByMember[log.memberId] = (totalMinutesByMember[log.memberId] || 0) + estDuration;
