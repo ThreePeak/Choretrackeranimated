@@ -11,6 +11,8 @@ export interface Chore {
   createdAt?: any;
   order?: number;     // For manual sorting
   category?: string;  // For grouping (Kitchen, etc)
+  xp: number;         // Gamification value
+  estMinutes: number; // Duration estimate
 }
 
 export interface ChoreLog {
