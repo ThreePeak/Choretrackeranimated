@@ -155,17 +155,30 @@
       "createdAt": "2026-01-09T03:13:03.124Z"
     },
     {
-      "id": "mw2g482qv",
-      "name": "Cook dinner for 2+ people",
-      "createdAt": "2026-01-15T02:18:07.606Z"
+      "id": "juo1g4ztx",
+      "name": "Make dinner for 2+ people",
+      "createdAt": "2026-01-15T06:04:41.301Z",
+      "category": "Kitchen",
+      "xp": 470,
+      "estMinutes": 40
     },
     {
-      "id": "1ond3afur",
+      "id": "nmoa0fiof",
       "name": "Sort recycling",
-      "createdAt": "2026-01-15T02:18:20.610Z"
+      "createdAt": "2026-01-15T06:04:48.971Z",
+      "category": "General",
+      "xp": 295,
+      "estMinutes": 20
     }
   ],
   "logs": [
+    {
+      "id": "x7l81kb83",
+      "choreId": "RpGSjeWU5X6SWifyU87j",
+      "memberId": "fqfZoNWYRrytpfNjmcDm",
+      "timestamp": "2026-01-15T06:03:33.908Z",
+      "isManual": false
+    },
     {
       "id": "1fwg14vxh",
       "choreId": "RpGSjeWU5X6SWifyU87j",
