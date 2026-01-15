@@ -1,3 +1,5 @@
+import { MASTER_CHORES } from './constants';
+
 export const generateColor = (str: string): string => {
   let hash = 0;
   for (let i = 0; i < str.length; i++) {
@@ -49,6 +51,7 @@ export const getHour = (dateInput: any): number => {
     return date.getHours();
 };
 
+// Legacy estimator - now used as fallback
 export const estimateChoreDuration = (choreName: string): number => {
     const lower = choreName.toLowerCase();
     if (lower.includes('dish') || lower.includes('wash') || lower.includes('clean') || lower.includes('vacuum') || lower.includes('mow')) return 20;
@@ -73,4 +76,48 @@ export const formatDuration = (minutes: number): string => {
     const hours = Math.floor(minutes / 60);
     const mins = Math.round(minutes % 60);
     return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+};
+
+/**
+ * Smart Heuristic Calculation for new chores.
+ * 1. Checks exact match in Master Data.
+ * 2. Checks fuzzy keyword match in Master Data.
+ * 3. Falls back to estimation logic.
+ */
+export const predictChoreValues = (name: string): { xp: number, estMinutes: number, category: string } => {
+    const lowerName = name.trim().toLowerCase();
+
+    // 1. Exact Match
+    const exactMatch = MASTER_CHORES.find(c => c.name.toLowerCase() === lowerName);
+    if (exactMatch) {
+        return { 
+            xp: exactMatch.xp, 
+            estMinutes: exactMatch.estMinutes, 
+            category: exactMatch.category 
+        };
+    }
+
+    // 2. Fuzzy Match (Keywords)
+    // We check if the new chore name contains words from a master chore, or vice versa (for partials)
+    const fuzzyMatch = MASTER_CHORES.find(c => {
+        const masterWords = c.name.toLowerCase().split(' ');
+        // Match if any significant word from master chore exists in input
+        return masterWords.some(w => w.length > 3 && lowerName.includes(w));
+    });
+
+    if (fuzzyMatch) {
+        return {
+            xp: fuzzyMatch.xp,
+            estMinutes: fuzzyMatch.estMinutes,
+            category: fuzzyMatch.category
+        };
+    }
+
+    // 3. Fallback Heuristics
+    const estMinutes = estimateChoreDuration(name);
+    // Formula: XP = (EstTime * 10) + 50
+    const xp = (estMinutes * 10) + 50; 
+    const category = getChoreCategory(name);
+
+    return { xp, estMinutes, category };
 };
