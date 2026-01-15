@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { Member, Chore, ChoreLog, AppView, DistributionItem } from './types';
 import { generateColor, formatDate, getRelativeTime, getDayName, getHour, estimateChoreDuration, getChoreCategory, formatDuration, predictChoreValues } from './utils';
-import { DistributionBar, DonutChart, WeeklyActivityGraph, VerticalBarChart, StatCard, MiniContributionBar, DayOfWeekChart } from './components/Charts';
+import { DistributionBar, DonutChart, WeeklyActivityGraph, VerticalBarChart, StatCard, MiniContributionBar, DayOfWeekChart, HouseholdLevel } from './components/Charts';
 import { PROJECT_FILES } from './projectFiles';
 
 const App: React.FC = () => {
@@ -55,6 +55,7 @@ const App: React.FC = () => {
   // Inputs
   const [newMemberName, setNewMemberName] = useState('');
   const [newChoreName, setNewChoreName] = useState('');
+  const [newChoreCategory, setNewChoreCategory] = useState('');
   const [manualDate, setManualDate] = useState('');
   
   // Migration State
@@ -106,18 +107,22 @@ const App: React.FC = () => {
     if (!newChoreName.trim()) return;
     
     // Smart Prediction Logic
-    const { xp, estMinutes, category } = predictChoreValues(newChoreName.trim());
+    const { xp, estMinutes, category: predictedCategory } = predictChoreValues(newChoreName.trim());
+
+    // Use manual category if provided, otherwise fallback to prediction
+    const finalCategory = newChoreCategory.trim() ? newChoreCategory.trim() : predictedCategory;
 
     const newChore: Chore = {
       id: Math.random().toString(36).substr(2, 9),
       name: newChoreName.trim(),
       createdAt: new Date(),
-      category,
+      category: finalCategory,
       xp,
       estMinutes
     };
     setChores([...chores, newChore]);
     setNewChoreName('');
+    setNewChoreCategory('');
   };
 
   const handleLogChore = (choreId: string, memberId: string, date: string | null = null) => {
@@ -454,6 +459,14 @@ const App: React.FC = () => {
         return { label: m.name, value: count, color: m.color, id: m.id };
     }).sort((a, b) => b.value - a.value);
 
+    // Calculate Total Household XP
+    const totalHouseholdXP = logs.reduce((acc, log) => {
+        const chore = chores.find(c => c.id === log.choreId);
+        // Robust fallback if chore deleted or old data
+        const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
+        return acc + xp;
+    }, 0);
+
     const sevenDaysAgo = new Date(); 
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const recentLogs = logs.filter(l => new Date(l.timestamp) >= sevenDaysAgo);
@@ -468,6 +481,22 @@ const App: React.FC = () => {
           maxCount = mvpCounts[mId]; 
           weeklyMvp = members.find(m => m.id === mId); 
         }
+    });
+
+    const getXPColor = (xp: number) => {
+        if (xp < 200) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+        if (xp < 400) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+        return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
+    };
+
+    // Sort chores: Group by Category (alphabetical), then by Name (alphabetical)
+    // Categories like 'Kitchen', 'General' etc will group together.
+    const sortedChores = [...chores].sort((a, b) => {
+        const catA = a.category || 'ZZZ'; // Undefined categories go to the end
+        const catB = b.category || 'ZZZ';
+        const catCompare = catA.localeCompare(catB);
+        if (catCompare !== 0) return catCompare;
+        return a.name.localeCompare(b.name);
     });
 
     return (
@@ -500,6 +529,9 @@ const App: React.FC = () => {
               />
            </div>
         </div>
+
+        {/* Household Level Progress */}
+        <HouseholdLevel totalXP={totalHouseholdXP} />
 
         {members.length === 0 && (
           <div className="bg-blue-900/20 border border-blue-800/50 p-8 rounded-2xl mb-6 text-center animate-pulse">
@@ -540,10 +572,15 @@ const App: React.FC = () => {
 
         {/* Chores Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {chores.map(chore => {
+          {sortedChores.map(chore => {
             const stats = getChoreStats(chore.id);
             const lastLog = logs.find(l => l.choreId === chore.id);
             const lastMember = lastLog ? members.find(m => m.id === lastLog.memberId) : null;
+            
+            // XP Badge Logic
+            const xp = chore.xp || predictChoreValues(chore.name).xp;
+            const badgeColor = getXPColor(xp);
+
             return (
               <div 
                 key={chore.id}
@@ -551,12 +588,22 @@ const App: React.FC = () => {
                 className="bg-gray-800/30 hover:bg-gray-800/60 border border-gray-800 rounded-2xl p-6 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] group"
               >
                 <div className="flex justify-between items-start">
-                  <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{chore.name}</h3>
-                  {stats.streak.count >= 3 && (
-                     <div className="bg-orange-500/10 text-orange-500 px-2 py-1 rounded-lg text-[10px] font-black flex items-center gap-1 border border-orange-500/20">
-                       <Flame size={12} /> {stats.streak.count}X STREAK
-                     </div>
-                  )}
+                  <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-gray-500">{chore.category || 'General'}</span>
+                      </div>
+                      <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{chore.name}</h3>
+                      <div className="flex items-center gap-2 mt-1">
+                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${badgeColor}`}>
+                              +{Math.round(xp)} XP
+                          </span>
+                          {stats.streak.count >= 3 && (
+                             <div className="bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 border border-orange-500/20">
+                               <Flame size={10} /> {stats.streak.count}X
+                             </div>
+                          )}
+                      </div>
+                  </div>
                 </div>
                 <div className="mt-5">
                   <div className="flex justify-between text-[10px] font-bold text-gray-500 uppercase mb-2">
@@ -582,7 +629,7 @@ const App: React.FC = () => {
             <div className="mt-12 pt-8 border-t border-gray-800">
                 <h3 className="text-gray-500 font-bold text-sm mb-6 flex items-center gap-2"><ChartColumn size={18}/> Household Pulse</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <VerticalBarChart data={overallDistribution} title="All-Time Leaderboard" />
+                    <VerticalBarChart data={overallDistribution} title="All-Time Leaderboard (Count)" />
                     <div className="grid grid-cols-2 gap-4">
                         <StatCard icon={<CheckCircle size={16} />} title="Total Chores" value={logs.length} subtext="Lifetime completions" colorClass="text-blue-400" />
                         <StatCard icon={<Users size={16} />} title="Family Size" value={members.length} subtext="Active members" colorClass="text-purple-400" />
@@ -757,6 +804,25 @@ const App: React.FC = () => {
         return { label: m?.name || 'Unknown', value: count, color: m?.color || '#333', id };
     });
 
+    // XP Leaderboard
+    const xpByMember: Record<string, number> = {};
+    members.forEach(m => xpByMember[m.id] = 0);
+    logs.forEach(log => {
+        const chore = chores.find(c => c.id === log.choreId);
+        // Fallback for XP if not found on chore object
+        const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
+        if (xpByMember[log.memberId] !== undefined) {
+            xpByMember[log.memberId] += xp;
+        }
+    });
+    
+    const xpLeaderboardData = members.map(m => ({
+        label: m.name,
+        value: Math.round(xpByMember[m.id]),
+        color: m.color,
+        id: m.id
+    })).sort((a,b) => b.value - a.value);
+
     // Time Leaderboard
     const timeData = funStats.sortedTime.map(([id, mins]) => {
         const m = members.find(mem => mem.id === id);
@@ -805,7 +871,11 @@ const App: React.FC = () => {
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <VerticalBarChart data={xpLeaderboardData} title="XP Leaderboard (Total Points)" />
                 <VerticalBarChart data={leaderboardData} title="Task Count Leaderboard" />
+            </div>
+            
+            <div className="grid grid-cols-1">
                 <VerticalBarChart data={timeData} title="Hours Worked Leaderboard" />
             </div>
 
@@ -918,14 +988,41 @@ const App: React.FC = () => {
       {/* Chores Section */}
       <section className="bg-gray-800/40 border border-gray-800 rounded-3xl p-6">
         <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <CheckCircle size={20} className="text-emerald-500" /> Task Library </h2>
-        <form onSubmit={handleAddChore} className="flex gap-3 mb-6">
-          <input type="text" placeholder="Task Name (e.g. Vacuum)" className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700" value={newChoreName} onChange={(e) => setNewChoreName(e.target.value)} />
+        <form onSubmit={handleAddChore} className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="flex-1 flex gap-3">
+            <input 
+                type="text" 
+                placeholder="Task Name (e.g. Vacuum)" 
+                className="flex-[2] bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700" 
+                value={newChoreName} 
+                onChange={(e) => setNewChoreName(e.target.value)} 
+            />
+            <input 
+                type="text" 
+                placeholder="Category" 
+                className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700" 
+                value={newChoreCategory} 
+                onChange={(e) => setNewChoreCategory(e.target.value)} 
+                list="category-suggestions"
+            />
+            <datalist id="category-suggestions">
+                <option value="Kitchen" />
+                <option value="Bathroom" />
+                <option value="Living Room" />
+                <option value="Bedroom" />
+                <option value="Outdoor" />
+                <option value="Pets" />
+            </datalist>
+          </div>
           <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-900/20"> Add </button>
         </form>
         <div className="space-y-2">
             {chores.map(chore => (
             <div key={chore.id} className="flex justify-between items-center bg-gray-900/40 p-4 rounded-2xl border border-gray-800 group hover:border-emerald-500/30 transition-all">
-                <span className="text-gray-200 font-bold">{chore.name}</span>
+                <div className="flex flex-col">
+                    <span className="text-gray-200 font-bold">{chore.name}</span>
+                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{chore.category}</span>
+                </div>
                 <button onClick={() => handleDeleteItem('chores', chore.id)} className="text-gray-700 hover:text-red-500 transition-colors p-2"> <Trash size={18} /> </button>
             </div>
             ))}
