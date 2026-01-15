@@ -173,7 +173,6 @@ const App: React.FC = () => {
         const user = await userRes.json();
 
         // 2. Create Repo (ignore if exists)
-        // We attempt to create it. If it exists, this often returns 422 but we proceed anyway.
         await fetch('https://api.github.com/user/repos', {
             method: 'POST',
             headers,
@@ -185,24 +184,20 @@ const App: React.FC = () => {
         });
 
         // 3. Ensure Branch Exists
-        // Check if branch exists
         const branchCheckRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${ghBranch}`, { headers });
         
         if (branchCheckRes.status === 404) {
             // Branch does not exist. Create it from default branch.
-            // A. Get Repo Info to find default branch
             const repoRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}`, { headers });
             if (!repoRes.ok) throw new Error("Could not access repository.");
             const repoData = await repoRes.json();
             const defaultBranch = repoData.default_branch || 'main';
 
-            // B. Get SHA of default branch
             const refRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${defaultBranch}`, { headers });
             if (!refRes.ok) throw new Error(`Could not find default branch: ${defaultBranch}`);
             const refData = await refRes.json();
             const sha = refData.object.sha;
 
-            // C. Create the new branch ref
             const createBranchRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/refs`, {
                 method: 'POST',
                 headers,
@@ -215,17 +210,25 @@ const App: React.FC = () => {
         }
 
         // 4. Prepare Files
+        // CRITICAL FIX: We dynamically generate the content of projectFiles.ts to include
+        // the current PROJECT_FILES array. This ensures projectFiles.ts exists in the repo
+        // so App.tsx can import it during the build process.
+        const projectFilesContent = `export const PROJECT_FILES = ${JSON.stringify(PROJECT_FILES, null, 2)};`;
+
         const filesToUpload = [
             ...PROJECT_FILES,
+            {
+                path: 'projectFiles.ts',
+                content: projectFilesContent
+            },
             { 
                 path: 'data_backup.json', 
                 content: JSON.stringify({ members, chores, logs }, null, 2) 
             }
         ];
 
-        // 5. Upload Files to Specific Branch
+        // 5. Upload Files
         for (const file of filesToUpload) {
-            // Get SHA from specific branch
             const fileUrl = `https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}?ref=${ghBranch}`;
             const getRes = await fetch(fileUrl, { headers });
             let sha = undefined;
@@ -236,7 +239,6 @@ const App: React.FC = () => {
 
             const contentEncoded = btoa(unescape(encodeURIComponent(file.content)));
             
-            // Upload
             const putRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}`, {
                 method: 'PUT',
                 headers,
@@ -244,7 +246,7 @@ const App: React.FC = () => {
                     message: `Update ${file.path} from App`,
                     content: contentEncoded,
                     sha,
-                    branch: ghBranch // Targets the specific branch
+                    branch: ghBranch
                 })
             });
             
@@ -285,24 +287,19 @@ const App: React.FC = () => {
   const calculateFunStats = () => {
     if (logs.length === 0 || members.length === 0) return null;
 
-    // Helper: Count logs by member
     const countsByMember: Record<string, number> = {};
     const countsByHour: Record<number, number> = {};
     const countsByDay: Record<string, number> = {};
     const distinctChoresByMember: Record<string, Set<string>> = {};
-    
-    // Time & Value Analysis
     const totalMinutesByMember: Record<string, number> = {};
     let totalMinutesHouse = 0;
 
-    // Initialize
     members.forEach(m => {
         countsByMember[m.id] = 0;
         totalMinutesByMember[m.id] = 0;
         distinctChoresByMember[m.id] = new Set();
     });
 
-    // Iterate Logs
     logs.forEach(log => {
         const chore = chores.find(c => c.id === log.choreId);
         const estDuration = chore ? estimateChoreDuration(chore.name) : 10;
@@ -322,25 +319,21 @@ const App: React.FC = () => {
         countsByHour[hour] = (countsByHour[hour] || 0) + 1;
     });
 
-    // 1. Most Active (Leader)
     const sortedMembers = Object.entries(countsByMember).sort((a,b) => b[1] - a[1]);
     const leader = members.find(m => m.id === sortedMembers[0]?.[0]);
 
-    // 2. Night Owl (After 9PM)
     const nightLogs = logs.filter(l => getHour(l.timestamp) >= 21);
     const nightCounts: Record<string, number> = {};
     nightLogs.forEach(l => nightCounts[l.memberId] = (nightCounts[l.memberId] || 0) + 1);
     const nightOwlEntry = Object.entries(nightCounts).sort((a,b) => b[1] - a[1])[0];
     const nightOwl = members.find(m => m.id === nightOwlEntry?.[0]);
 
-    // 3. Early Bird (Before 8AM)
     const morningLogs = logs.filter(l => getHour(l.timestamp) <= 8);
     const morningCounts: Record<string, number> = {};
     morningLogs.forEach(l => morningCounts[l.memberId] = (morningCounts[l.memberId] || 0) + 1);
     const earlyBirdEntry = Object.entries(morningCounts).sort((a,b) => b[1] - a[1])[0];
     const earlyBird = members.find(m => m.id === earlyBirdEntry?.[0]);
 
-    // 4. Weekend Warrior
     const weekendLogs = logs.filter(l => {
         const d = l.timestamp.toDate ? l.timestamp.toDate() : new Date(l.timestamp);
         return d.getDay() === 0 || d.getDay() === 6;
@@ -350,17 +343,12 @@ const App: React.FC = () => {
     const warriorEntry = Object.entries(weekendCounts).sort((a,b) => b[1] - a[1])[0];
     const weekendWarrior = members.find(m => m.id === warriorEntry?.[0]);
 
-    // 5. Variety Award
     const varietySorted = Object.entries(distinctChoresByMember).sort((a,b) => b[1].size - a[1].size);
     const varietyWinner = members.find(m => m.id === varietySorted[0]?.[0]);
     
-    // 6. Busiest Day
     const busiestDayEntry = Object.entries(countsByDay).sort((a,b) => b[1] - a[1])[0];
-
-    // 7. Total Chores
     const totalChores = logs.length;
 
-    // 8. Specialist
     let specialist = null;
     let maxSpecialization = 0;
     members.forEach(m => {
@@ -377,27 +365,21 @@ const App: React.FC = () => {
         }
     });
 
-    // 9. Time Lord (Most Time Spent)
     const sortedTime = Object.entries(totalMinutesByMember).sort((a,b) => b[1] - a[1]);
     const timeLord = members.find(m => m.id === sortedTime[0]?.[0]);
     const timeLordMinutes = sortedTime[0]?.[1] || 0;
 
-    // Generate Statements / Did You Know
     const didYouKnows: string[] = [];
     
-    // Fact 1: Calories
-    const caloriesBurned = Math.round(totalMinutesHouse * 4.5); // Avg 4.5 kcal/min for light housework
+    const caloriesBurned = Math.round(totalMinutesHouse * 4.5);
     didYouKnows.push(`Did you know? The family has burned approximately ${caloriesBurned} calories doing chores. That's about ${Math.round(caloriesBurned/285)} slices of pizza!`);
 
-    // Fact 2: Wage
-    const wageValue = (totalMinutesHouse / 60) * 15; // $15/hr
+    const wageValue = (totalMinutesHouse / 60) * 15;
     didYouKnows.push(`Did you know? If you hired a professional at $15/hr, this work would have cost $${wageValue.toFixed(2)}.`);
 
-    // Fact 3: Netflix
     const moviesWatched = (totalMinutesHouse / 120).toFixed(1);
     didYouKnows.push(`Did you know? You could have watched ${moviesWatched} full-length movies in the time spent cleaning.`);
 
-    // Fact 4: Comparison
     if (members.length >= 2) {
         const top = members.find(m => m.id === sortedMembers[0][0]);
         const second = members.find(m => m.id === sortedMembers[1][0]);
@@ -407,7 +389,6 @@ const App: React.FC = () => {
         }
     }
 
-    // Fact 5: Specific Chore Ownership
     chores.forEach(c => {
         const cLogs = logs.filter(l => l.choreId === c.id);
         if (cLogs.length > 5) {
@@ -422,17 +403,14 @@ const App: React.FC = () => {
         }
     });
 
-    // Fact 6: Time Lord Stat
     if (timeLord) {
         didYouKnows.push(`Did you know? ${timeLord.name} has spent roughly ${(timeLordMinutes/60).toFixed(1)} hours working. Give them a break!`);
     }
 
-    // Fact 7: Weekly Avg
     const weeksActive = Math.max(1, (new Date().getTime() - new Date(logs[logs.length-1]?.timestamp || new Date()).getTime()) / (1000 * 3600 * 24 * 7));
     const avgPerWeek = Math.round(logs.length / weeksActive);
     didYouKnows.push(`Did you know? The household averages ${avgPerWeek} tasks per week.`);
 
-    // Fact 8: Busiest Hour
     const busyHour = Object.entries(countsByHour).sort((a,b) => b[1] - a[1])[0];
     if(busyHour) {
         const hourInt = parseInt(busyHour[0]);
@@ -441,7 +419,6 @@ const App: React.FC = () => {
         didYouKnows.push(`Did you know? The most productive time of day is around ${displayHour} ${ampm}.`);
     }
 
-    // Shuffle and pick 6
     const shuffledFacts = didYouKnows.sort(() => 0.5 - Math.random()).slice(0, 10);
 
     return {
