@@ -1,0 +1,123 @@
+import { Member, Chore, ChoreLog } from './types';
+import { predictChoreValues } from './utils';
+
+// Utility to convert Firestore timestamps and ISO strings to Date objects
+function convertTimestamp(timestamp: any): Date {
+    // Handle Firestore timestamp objects { seconds, nanoseconds }
+    if (timestamp?.seconds !== undefined) {
+        return new Date(timestamp.seconds * 1000 + (timestamp.nanoseconds || 0) / 1000000);
+    }
+    // Handle ISO date strings
+    if (typeof timestamp === 'string') {
+        return new Date(timestamp);
+    }
+    // Already a Date object
+    return timestamp instanceof Date ? timestamp : new Date();
+}
+
+// User's ACTUAL backup data - 3 members, 16 chores, 49 activity logs
+const rawBackupData = {
+    "members": [
+        { "id": "M4jlNBktNvd7oVlXUCRA", "name": "Dom", "color": "#010D22", "joinedAt": { "seconds": 1767814631, "nanoseconds": 68000000 } },
+        { "id": "fqfZoNWYRrytpfNjmcDm", "name": "Nick", "joinedAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "color": "#250B83" },
+        { "id": "rmTmcbtFDonNFYYrMoK5", "joinedAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "name": "Adrianna", "color": "#99675A" }
+    ],
+    "chores": [
+        { "id": "g49u8tXGGXkOuZschR4L", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "name": "Cat box", "category": "Pets", "order": 1 },
+        { "id": "5fdpwSG0q8gucT25wGTQ", "name": "Dog poop", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "category": "Pets", "order": 2 },
+        { "id": "VTdWUQH5J8VND8VH24dE", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "name": "Empty dishwasher", "category": "Kitchen", "order": 3 },
+        { "id": "ufdsyAozw237Fxtg3VjY", "name": "Load dishwasher", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "category": "Kitchen", "order": 4 },
+        { "id": "fL0SuijXS9MmXInAyW9a", "name": "Make Brunch for 2+", "createdAt": { "seconds": 1767814694, "nanoseconds": 500000000 }, "category": "Kitchen", "order": 5 },
+        { "id": "XDUqMG5TsjDMr03q6Hpq", "name": "Mixed laundry load", "createdAt": { "seconds": 1767814732, "nanoseconds": 473000000 }, "category": "Laundry", "order": 6 },
+        { "id": "RpGSjeWU5X6SWifyU87j", "createdAt": { "seconds": 1767814757, "nanoseconds": 979000000 }, "name": "Fold laundry", "category": "Laundry", "order": 7 },
+        { "id": "HYso3r7fOwcTHWKZsXrg", "name": "Wash bedding", "createdAt": { "seconds": 1767814718, "nanoseconds": 688000000 }, "category": "Laundry", "order": 8 },
+        { "id": "SqBQOfYWk6qtLuzM62wg", "createdAt": { "seconds": 1767814789, "nanoseconds": 926000000 }, "name": "Clean toilet", "category": "Bathroom", "order": 9 },
+        { "id": "uKSZX4xgOO91zIXzUKjd", "createdAt": { "seconds": 1767814798, "nanoseconds": 590000000 }, "name": "Clean shower/tub", "category": "Bathroom", "order": 10 },
+        { "id": "QRD2H3CI8vT5BzwiQObk", "name": "Clean bathroom sink /counter", "createdAt": { "seconds": 1767814820, "nanoseconds": 858000000 }, "category": "Bathroom", "order": 11 },
+        { "id": "qi25rgn52iEouEOrL3sf", "name": "Vacuum", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "category": "Cleaning", "order": 12 },
+        { "id": "aXRWlLj6fhR5xUxxCZuP", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "name": "Mop", "category": "Cleaning", "order": 13 },
+        { "id": "XH8e11kycvYc68nY0tIe", "name": "Take out garbage", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "category": "Waste", "order": 14 },
+        { "id": "wQ14T5rqpmx1GsXaWgBs", "createdAt": { "seconds": 1767814631, "nanoseconds": 68000000 }, "name": "Take out recycling", "category": "Waste", "order": 15 },
+        { "id": "bxcbrsrrd", "name": "Dump run", "createdAt": "2026-01-09T03:13:03.124Z", "category": "Waste", "order": 16 }
+    ],
+    "logs": [
+        { "id": "1fwg14vxh", "choreId": "RpGSjeWU5X6SWifyU87j", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T00:58:00.000Z", "isManual": true },
+        { "id": "bwxl44kn3", "choreId": "XDUqMG5TsjDMr03q6Hpq", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T03:57:00.000Z", "isManual": true },
+        { "id": "jhae1z7jx", "choreId": "XDUqMG5TsjDMr03q6Hpq", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T01:57:00.000Z", "isManual": true },
+        { "id": "h4x2c82lo", "choreId": "HYso3r7fOwcTHWKZsXrg", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T21:56:46.375Z", "isManual": false },
+        { "id": "8plpc9gjg", "choreId": "ufdsyAozw237Fxtg3VjY", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T03:56:00.000Z", "isManual": true },
+        { "id": "lgp6s6s7a", "choreId": "ufdsyAozw237Fxtg3VjY", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-12T03:56:00.000Z", "isManual": true },
+        { "id": "2vh3va3ar", "choreId": "VTdWUQH5J8VND8VH24dE", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-14T00:55:00.000Z", "isManual": true },
+        { "id": "1l99yfuug", "choreId": "ufdsyAozw237Fxtg3VjY", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-12T02:54:00.000Z", "isManual": true },
+        { "id": "9aeyxnfam", "choreId": "bxcbrsrrd", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-03T21:16:00.000Z", "isManual": true },
+        { "id": "o60tbnsyl", "choreId": "bxcbrsrrd", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-12T23:16:00.000Z", "isManual": true },
+        { "id": "eag0rdgwu", "choreId": "uKSZX4xgOO91zIXzUKjd", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-05T01:15:00.000Z", "isManual": true },
+        { "id": "l9aarlxg5", "choreId": "qi25rgn52iEouEOrL3sf", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-20T22:14:00.000Z", "isManual": true },
+        { "id": "ixm1sun5n", "choreId": "aXRWlLj6fhR5xUxxCZuP", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-21T00:13:00.000Z", "isManual": true },
+        { "id": "ffr0779jj", "choreId": "SqBQOfYWk6qtLuzM62wg", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-22T03:13:00.000Z", "isManual": true },
+        { "id": "885suq12u", "choreId": "g49u8tXGGXkOuZschR4L", "memberId": "M4jlNBktNvd7oVlXUCRA", "timestamp": "2026-01-12T18:50:49.684Z", "isManual": false },
+        { "id": "h928lg3ad", "choreId": "fL0SuijXS9MmXInAyW9a", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-12T18:50:35.529Z", "isManual": false },
+        { "id": "zbaatje82", "choreId": "fL0SuijXS9MmXInAyW9a", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-11T18:50:00.000Z", "isManual": true },
+        { "id": "cos281ek5", "choreId": "VTdWUQH5J8VND8VH24dE", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-10T18:49:00.000Z", "isManual": true },
+        { "id": "v9dvihbrg", "choreId": "XH8e11kycvYc68nY0tIe", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-16T23:23:00.000Z", "isManual": true },
+        { "id": "499ytu60x", "choreId": "XH8e11kycvYc68nY0tIe", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-15T17:23:00.000Z", "isManual": true },
+        { "id": "a025lcbik", "choreId": "RpGSjeWU5X6SWifyU87j", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-19T19:22:00.000Z", "isManual": true },
+        { "id": "qiyrsr5cg", "choreId": "RpGSjeWU5X6SWifyU87j", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-06T20:21:00.000Z", "isManual": true },
+        { "id": "kijzhtt0d", "choreId": "RpGSjeWU5X6SWifyU87j", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-02T02:21:00.000Z", "isManual": true },
+        { "id": "b9qyw1o8j", "choreId": "XDUqMG5TsjDMr03q6Hpq", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-13T00:20:00.000Z", "isManual": true },
+        { "id": "ebbitkk4h", "choreId": "XDUqMG5TsjDMr03q6Hpq", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-01T19:20:00.000Z", "isManual": true },
+        { "id": "spljxwb6q", "choreId": "HYso3r7fOwcTHWKZsXrg", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-07T01:19:00.000Z", "isManual": true },
+        { "id": "pmt3rtde6", "choreId": "XH8e11kycvYc68nY0tIe", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-04T02:18:00.000Z", "isManual": true },
+        { "id": "3ddmnlv2v", "choreId": "5fdpwSG0q8gucT25wGTQ", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2026-01-04T21:16:00.000Z", "isManual": true },
+        { "id": "8lhexcegd", "choreId": "bxcbrsrrd", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-12T23:15:00.000Z", "isManual": true },
+        { "id": "gjcs9oauk", "choreId": "5fdpwSG0q8gucT25wGTQ", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-15T23:11:00.000Z", "isManual": true },
+        { "id": "ktx2utmh0", "choreId": "ufdsyAozw237Fxtg3VjY", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-22T19:11:00.000Z", "isManual": true },
+        { "id": "q4vgerupc", "choreId": "VTdWUQH5J8VND8VH24dE", "memberId": "M4jlNBktNvd7oVlXUCRA", "timestamp": "2025-12-12T00:08:00.000Z", "isManual": true },
+        { "id": "acdmotuey", "choreId": "VTdWUQH5J8VND8VH24dE", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-28T03:07:00.000Z", "isManual": true },
+        { "id": "h87wnb840", "choreId": "VTdWUQH5J8VND8VH24dE", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2025-12-03T23:07:00.000Z", "isManual": true },
+        { "id": "xl89kzhth", "choreId": "ufdsyAozw237Fxtg3VjY", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-05T02:06:00.000Z", "isManual": true },
+        { "id": "Z7nqwURK7iiX7tCzDwKZ", "memberId": "rmTmcbtFDonNFYYrMoK5", "choreId": "fL0SuijXS9MmXInAyW9a", "timestamp": "2026-01-07T19:42:57.500Z", "isManual": false },
+        { "id": "8sSgFrDcRfbKuxDdxai1", "timestamp": "2026-01-07T12:15:22.623Z", "choreId": "VTdWUQH5J8VND8VH24dE", "isManual": false, "memberId": "fqfZoNWYRrytpfNjmcDm" },
+        { "id": "uU70LtsNz6zhMoXJbJcs", "isManual": false, "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-07T12:15:14.484Z", "choreId": "ufdsyAozw237Fxtg3VjY" },
+        { "id": "i8RxdK5yGJZahtbfpZY4", "choreId": "XDUqMG5TsjDMr03q6Hpq", "memberId": "fqfZoNWYRrytpfNjmcDm", "timestamp": "2026-01-05T22:44:00.000Z", "isManual": true },
+        { "id": "fQ4KvxAc8JQF0kPk8YGE", "timestamp": "2026-01-04T19:43:00.000Z", "choreId": "g49u8tXGGXkOuZschR4L", "memberId": "M4jlNBktNvd7oVlXUCRA", "isManual": true },
+        { "id": "K1sD5Jho3eSNix5cv0nN", "isManual": true, "choreId": "XH8e11kycvYc68nY0tIe", "timestamp": "2026-01-03T22:43:00.000Z", "memberId": "fqfZoNWYRrytpfNjmcDm" },
+        { "id": "RkLFMr54XPRE2D3mCfEb", "isManual": true, "memberId": "fqfZoNWYRrytpfNjmcDm", "choreId": "HYso3r7fOwcTHWKZsXrg", "timestamp": "2026-01-03T19:41:00.000Z" },
+        { "id": "sVkFVc4Py7uqWtyNkdDT", "isManual": true, "timestamp": "2026-01-02T19:41:00.000Z", "memberId": "rmTmcbtFDonNFYYrMoK5", "choreId": "XDUqMG5TsjDMr03q6Hpq" },
+        { "id": "aZx69TjOoAHTww0hwDc6", "memberId": "rmTmcbtFDonNFYYrMoK5", "timestamp": "2025-12-22T19:41:00.000Z", "isManual": true, "choreId": "5fdpwSG0q8gucT25wGTQ" },
+        { "id": "EfHFSG9yC5UEYjCeXS6Z", "timestamp": "2025-12-07T04:42:00.000Z", "choreId": "SqBQOfYWk6qtLuzM62wg", "memberId": "fqfZoNWYRrytpfNjmcDm", "isManual": true },
+        { "id": "yA7bWkJES13ibfiJ8mZ1", "choreId": "QRD2H3CI8vT5BzwiQObk", "timestamp": "2025-12-07T01:42:00.000Z", "isManual": true, "memberId": "fqfZoNWYRrytpfNjmcDm" },
+        { "id": "y02rcKb4aAl7JdmCEtmy", "choreId": "wQ14T5rqpmx1GsXaWgBs", "isManual": true, "timestamp": "2025-12-07T00:43:00.000Z", "memberId": "fqfZoNWYRrytpfNjmcDm" },
+        { "id": "bHfCtCUDjGgBNZ7r6YGl", "timestamp": "2025-12-06T12:15:00.000Z", "choreId": "aXRWlLj6fhR5xUxxCZuP", "isManual": true, "memberId": "fqfZoNWYRrytpfNjmcDm" },
+        { "id": "hpGZyFdpgkmdEFQIJAq8", "isManual": true, "choreId": "qi25rgn52iEouEOrL3sf", "timestamp": "2025-12-06T12:15:00.000Z", "memberId": "fqfZoNWYRrytpfNjmcDm" }
+    ]
+};
+
+// Convert all timestamps in the backup data
+export const SEED_DATA: { members: Member[], chores: Chore[], logs: ChoreLog[] } = {
+    members: rawBackupData.members.map(m => ({
+        ...m,
+        joinedAt: convertTimestamp(m.joinedAt)
+    })),
+    chores: rawBackupData.chores.map((c: any) => {
+        // Use existing values or predict them based on chore name
+        const predicted = predictChoreValues(c.name);
+        const chore: Chore = {
+            id: c.id,
+            name: c.name,
+            createdAt: convertTimestamp(c.createdAt),
+            xp: c.xp !== undefined ? c.xp : predicted.xp,
+            estMinutes: c.estMinutes !== undefined ? c.estMinutes : predicted.estMinutes,
+            order: c.order
+        };
+        // Only add category if it exists (Firebase doesn't allow undefined)
+        if (c.category !== undefined) {
+            chore.category = c.category;
+        }
+        return chore;
+    }),
+    logs: rawBackupData.logs.map(l => ({
+        ...l,
+        timestamp: convertTimestamp(l.timestamp)
+    }))
+};

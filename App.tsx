@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { 
-  Users, 
-  Trophy, 
-  Activity, 
-  CheckCircle, 
-  Calendar, 
-  Flame, 
-  Clock, 
+import {
+  Users,
+  Trophy,
+  Activity,
+  CheckCircle,
+  Calendar,
+  Flame,
+  Clock,
   ArrowLeft,
   Settings,
   PieChart,
@@ -32,32 +32,67 @@ import {
   GitBranch,
   Lightbulb,
   Hourglass,
-  DollarSign
+  DollarSign,
+  Medal,
+  BarChart3
 } from 'lucide-react';
-import { Member, Chore, ChoreLog, AppView, DistributionItem } from './types';
+import { Member, Chore, ChoreLog, AppView, DistributionItem, MemberAchievement, Theme, Achievement, ChoreSkill } from './types';
 import { generateColor, formatDate, getRelativeTime, getDayName, getHour, estimateChoreDuration, getChoreCategory, formatDuration, predictChoreValues } from './utils';
 import { DistributionBar, DonutChart, WeeklyActivityGraph, VerticalBarChart, StatCard, MiniContributionBar, DayOfWeekChart, HouseholdLevel } from './components/Charts';
+import { getSavedTheme } from './utils/themes';
+import { soundManager, triggerHaptic } from './utils/sounds';
+import { calculateEquityScore } from './utils/equity';
+import { generateRecommendations } from './utils/recommendations';
+import { triggerCelebration } from './utils/celebrations';
+import { generateInsights } from './utils/insights';
+import { generateWeeklyChallenge, calculateChallengeProgress, Challenge } from './utils/challenges';
+import { RecurringSchedule, shouldNotify, calculateNextDue, showChoreNotification } from './utils/scheduler';
+import { LiveActivityFeed } from './components/LiveActivityFeed';
+import { AchievementCard } from './components/AchievementCard';
+import { AchievementUnlockModal } from './components/AchievementUnlockModal';
+import { AnalyticsCharts } from './components/AnalyticsCharts';
+import { HistoryExplorer } from './components/HistoryExplorer';
+import { SocialShare } from './components/SocialShare';
+import { ThemeSelector } from './components/ThemeSelector';
+import { Confetti } from './components/Confetti';
+import { AdvancedAnalyticsDashboard } from './components/AdvancedAnalyticsDashboard';
+import { AvatarSelector } from './components/AvatarSelector';
+import { LevelUpModal } from './components/LevelUpModal';
+import { SkillsDashboard } from './components/SkillsDashboard';
+import { ProfileBadge, generateBadges } from './components/ProfileBadge';
+import { JourneyMap } from './components/JourneyMap';
+import { SeasonalBanner } from './components/SeasonalBanner';
+import { WorkloadEquity } from './components/WorkloadEquity';
+import { SmartSuggestions } from './components/SmartSuggestions';
+import { FamilyRoster } from './components/FamilyRoster';
 import { PROJECT_FILES } from './projectFiles';
+import { getDifficultyXP, getDifficultyStars, getDifficultyColor, DIFFICULTY_XP_MAP } from './utils/difficulty';
+import type { DifficultyTier } from './types';
+import { database, ref, set, onValue, off } from './firebase';
+import { SEED_DATA } from './seedData';
+import { ACHIEVEMENTS, calculateAchievementProgress } from './achievements';
+import { calculateAnalytics } from './utils/advancedAnalytics';
 
 const App: React.FC = () => {
   const [view, setView] = useState<AppView>('dashboard');
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
-  
+
   // App ID Management
-  const [manualAppId, setManualAppId] = useState(""); 
+  const [manualAppId, setManualAppId] = useState("");
   const appId = manualAppId.trim() !== "" ? manualAppId.trim() : "default-family-id";
-  
+
   // Data State
   const [members, setMembers] = useState<Member[]>([]);
   const [chores, setChores] = useState<Chore[]>([]);
   const [logs, setLogs] = useState<ChoreLog[]>([]);
-  
+
   // Inputs
   const [newMemberName, setNewMemberName] = useState('');
   const [newChoreName, setNewChoreName] = useState('');
   const [newChoreCategory, setNewChoreCategory] = useState('');
+  const [newChoreDifficulty, setNewChoreDifficulty] = useState<DifficultyTier>('beginner');
   const [manualDate, setManualDate] = useState('');
-  
+
   // Migration State
   const [importJson, setImportJson] = useState('');
   const [exportJson, setExportJson] = useState('');
@@ -69,6 +104,100 @@ const App: React.FC = () => {
   const [ghRepo, setGhRepo] = useState('family-chore-tracker');
   const [ghBranch, setGhBranch] = useState('ThreePeak-patch-1');
   const [isUploading, setIsUploading] = useState(false);
+
+  // Theme State
+  const [currentTheme, setCurrentTheme] = useState<Theme>(getSavedTheme());
+
+  // New Member State
+  const [newMemberAvatar, setNewMemberAvatar] = useState('👤');
+
+  // Manual Time Entry
+  const [manualTime, setManualTime] = useState('');
+
+  // Achievements State
+  const [memberAchievements, setMemberAchievements] = useState<MemberAchievement[]>([]);
+  const [achievementUnlocks, setAchievementUnlocks] = useState<Record<string, { unlockedAt: string }>>({});
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [unlockedAchievement, setUnlockedAchievement] = useState<Achievement | null>(null);
+  const [unlockedMember, setUnlockedMember] = useState<Member | null>(null);
+
+  // Confetti State
+  const [showConfetti, setShowConfetti] = useState(false);
+
+  // Level-Up Modal State
+  const [showLevelUpModal, setShowLevelUpModal] = useState(false);
+  const [levelUpMember, setLevelUpMember] = useState<Member | null>(null);
+  const [levelUpData, setLevelUpData] = useState<{ oldLevel: number; newLevel: number; xp: number; newSkills: ChoreSkill[] } | null>(null);
+
+  // Skills Dashboard State
+  const [showSkillsDashboard, setShowSkillsDashboard] = useState(false);
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
+
+  // Avatar Selector State
+  const [showAvatarSelector, setShowAvatarSelector] = useState(false);
+
+  // Analytics State
+  const [analyticsPeriod, setAnalyticsPeriod] = useState<'week' | 'month' | 'year' | 'all'>('week');
+
+  // PWA State
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+  const [showInstallPrompt, setShowInstallPrompt] = useState(false);
+
+  // Achievement View State
+  const [selectedAchievementMemberId, setSelectedAchievementMemberId] = useState<string | null>(null);
+
+  // Sound & Haptics State
+  const [soundEnabled, setSoundEnabled] = useState(true);
+  const [hapticsEnabled, setHapticsEnabled] = useState(true);
+  const [isRestoring, setIsRestoring] = useState(false);
+
+  const handleTestSound = () => {
+    if (soundEnabled) {
+      try {
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+        const oscillator = audioContext.createOscillator();
+        const gainNode = audioContext.createGain();
+        oscillator.connect(gainNode);
+        gainNode.connect(audioContext.destination);
+        oscillator.frequency.value = 800;
+        gainNode.gain.value = 0.3;
+        oscillator.start();
+        setTimeout(() => oscillator.stop(), 100);
+      } catch (e) {
+        console.log('Audio not supported');
+      }
+    }
+    if (hapticsEnabled && 'vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+  };
+
+  // Sound manager for chore completion
+  const soundManager = {
+    playSuccess: () => {
+      if (soundEnabled) {
+        try {
+          const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+          const oscillator = audioContext.createOscillator();
+          const gainNode = audioContext.createGain();
+          oscillator.connect(gainNode);
+          gainNode.connect(audioContext.destination);
+          oscillator.frequency.value = 1000; // Higher pitch for success
+          gainNode.gain.value = 0.2;
+          oscillator.start();
+          setTimeout(() => oscillator.stop(), 150);
+        } catch (e) {
+          console.log('Audio not supported');
+        }
+      }
+    }
+  };
+
+  const triggerHaptic = () => {
+    if (hapticsEnabled && 'vibrate' in navigator) {
+      navigator.vibrate(50);
+    }
+  };
 
   // Persistence Simulation
   useEffect(() => {
@@ -86,7 +215,22 @@ const App: React.FC = () => {
   useEffect(() => {
     const data = { members, chores, logs };
     localStorage.setItem(`chore_data_${appId}`, JSON.stringify(data));
-  }, [members, chores, logs, appId]);
+  }, [members, chores, logs, appId, memberAchievements]);
+
+  // PWA Install Prompt Detection
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+      setShowInstallPrompt(true);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   /* ACTIONS */
   const handleAddMember = (e: React.FormEvent) => {
@@ -105,28 +249,38 @@ const App: React.FC = () => {
   const handleAddChore = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChoreName.trim()) return;
-    
-    // Smart Prediction Logic
-    const { xp, estMinutes, category: predictedCategory } = predictChoreValues(newChoreName.trim());
+
+    // Smart Prediction Logic for category and time
+    const { estMinutes, category: predictedCategory } = predictChoreValues(newChoreName.trim());
 
     // Use manual category if provided, otherwise fallback to prediction
     const finalCategory = newChoreCategory.trim() ? newChoreCategory.trim() : predictedCategory;
+
+    // Use difficulty-based XP instead of predicted XP
+    const difficultyXP = getDifficultyXP(newChoreDifficulty);
 
     const newChore: Chore = {
       id: Math.random().toString(36).substr(2, 9),
       name: newChoreName.trim(),
       createdAt: new Date(),
       category: finalCategory,
-      xp,
-      estMinutes
+      xp: difficultyXP,
+      estMinutes,
+      difficulty: newChoreDifficulty
     };
     setChores([...chores, newChore]);
     setNewChoreName('');
     setNewChoreCategory('');
+    setNewChoreDifficulty('beginner'); // Reset to beginner
   };
 
   const handleLogChore = (choreId: string, memberId: string, date: string | null = null) => {
     const timestamp = date ? new Date(date) : new Date();
+    const chore = chores.find(c => c.id === choreId);
+    const member = members.find(m => m.id === memberId);
+
+    if (!chore || !member) return;
+
     const newLog: ChoreLog = {
       id: Math.random().toString(36).substr(2, 9),
       choreId,
@@ -134,7 +288,103 @@ const App: React.FC = () => {
       timestamp,
       isManual: !!date
     };
+
     setLogs([newLog, ...logs]);
+
+    // XP and Leveling System
+    const xpGained = chore.xp || 10;
+    const currentTotalXP = (member as any).totalXP || 0;
+    const newTotalXP = currentTotalXP + xpGained;
+
+    // Calculate level (100 XP per level)
+    const oldLevel = Math.floor(currentTotalXP / 100) + 1;
+    const newLevel = Math.floor(newTotalXP / 100) + 1;
+    const leveledUp = newLevel > oldLevel;
+
+    // Update member XP
+    const updatedMembers = members.map(m => {
+      if (m.id === memberId) {
+        return { ...m, totalXP: newTotalXP, xp: newTotalXP % 100, level: newLevel };
+      }
+      return m;
+    });
+    setMembers(updatedMembers);
+
+    // Trigger confetti
+    setShowConfetti(true);
+    setTimeout(() => setShowConfetti(false), 3000);
+
+    // Play sound effect
+    if (soundManager && soundManager.playSuccess) {
+      soundManager.playSuccess();
+    }
+    triggerHaptic();
+
+    // Check for level up
+    if (leveledUp) {
+      // Calculate new skills unlocked at this level
+      const newSkills: ChoreSkill[] = [];
+      // Simplified skill unlock logic
+      if (newLevel % 5 === 0) {
+        newSkills.push({
+          name: `Level ${newLevel} Master`,
+          level: newLevel,
+          xp: newTotalXP,
+          category: chore.category || 'General'
+        });
+      }
+
+      setLevelUpData({
+        oldLevel,
+        newLevel,
+        xp: newTotalXP,
+        newSkills
+      });
+      setLevelUpMember(member);
+      setShowLevelUpModal(true);
+    }
+
+    // Check for achievements
+    ACHIEVEMENTS.forEach(achievement => {
+      const progress = calculateAchievementProgress(achievement, {
+        members: updatedMembers,
+        chores,
+        logs: [newLog, ...logs],
+        memberAchievements
+      });
+
+      if (progress >= 100) {
+        // Check if already unlocked
+        const alreadyUnlocked = memberAchievements.some(
+          ma => ma.memberId === memberId && ma.achievementId === achievement.id
+        );
+
+        if (!alreadyUnlocked) {
+          const now = new Date().toISOString();
+
+          // Track unlock timestamp
+          setAchievementUnlocks(prev => ({
+            ...prev,
+            [`${achievement.id}_${memberId}`]: { unlockedAt: now }
+          }));
+
+          // Add to member achievements
+          const newAchievement: MemberAchievement = {
+            memberId,
+            achievementId: achievement.id,
+            unlockedAt: new Date(now),
+            progress: 100
+          };
+
+          setMemberAchievements([...memberAchievements, newAchievement]);
+
+          // Show achievement modal
+          setUnlockedAchievement(achievement);
+          setUnlockedMember(member);
+          setShowAchievementModal(true);
+        }
+      }
+    });
   };
 
   const handleDeleteItem = (collection: 'members' | 'chores' | 'logs', id: string) => {
@@ -173,104 +423,104 @@ const App: React.FC = () => {
     setIsUploading(true);
 
     try {
-        const headers = { 
-            'Authorization': `token ${ghToken}`,
-            'Content-Type': 'application/json',
-            'Accept': 'application/vnd.github.v3+json'
-        };
+      const headers = {
+        'Authorization': `token ${ghToken}`,
+        'Content-Type': 'application/json',
+        'Accept': 'application/vnd.github.v3+json'
+      };
 
-        // 1. Get User Info
-        const userRes = await fetch('https://api.github.com/user', { headers });
-        if (!userRes.ok) throw new Error("Invalid Token");
-        const user = await userRes.json();
+      // 1. Get User Info
+      const userRes = await fetch('https://api.github.com/user', { headers });
+      if (!userRes.ok) throw new Error("Invalid Token");
+      const user = await userRes.json();
 
-        // 2. Create Repo (ignore if exists)
-        await fetch('https://api.github.com/user/repos', {
-            method: 'POST',
-            headers,
-            body: JSON.stringify({ 
-                name: ghRepo, 
-                private: true, 
-                description: "Family Chore Tracker Data & App" 
-            })
+      // 2. Create Repo (ignore if exists)
+      await fetch('https://api.github.com/user/repos', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          name: ghRepo,
+          private: true,
+          description: "Family Chore Tracker Data & App"
+        })
+      });
+
+      // 3. Ensure Branch Exists
+      const branchCheckRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${ghBranch}`, { headers });
+
+      if (branchCheckRes.status === 404) {
+        // Branch does not exist. Create it from default branch.
+        const repoRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}`, { headers });
+        if (!repoRes.ok) throw new Error("Could not access repository.");
+        const repoData = await repoRes.json();
+        const defaultBranch = repoData.default_branch || 'main';
+
+        const refRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${defaultBranch}`, { headers });
+        if (!refRes.ok) throw new Error(`Could not find default branch: ${defaultBranch}`);
+        const refData = await refRes.json();
+        const sha = refData.object.sha;
+
+        const createBranchRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/refs`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            ref: `refs/heads/${ghBranch}`,
+            sha: sha
+          })
+        });
+        if (!createBranchRes.ok) throw new Error(`Failed to create branch: ${ghBranch}`);
+      }
+
+      // 4. Prepare Files
+      // CRITICAL FIX: We dynamically generate the content of projectFiles.ts to include
+      // the current PROJECT_FILES array. This ensures projectFiles.ts exists in the repo
+      // so App.tsx can import it during the build process.
+      const projectFilesContent = `export const PROJECT_FILES = ${JSON.stringify(PROJECT_FILES, null, 2)};`;
+
+      const filesToUpload = [
+        ...PROJECT_FILES,
+        {
+          path: 'projectFiles.ts',
+          content: projectFilesContent
+        },
+        {
+          path: 'data_backup.json',
+          content: JSON.stringify({ members, chores, logs }, null, 2)
+        }
+      ];
+
+      // 5. Upload Files
+      for (const file of filesToUpload) {
+        const fileUrl = `https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}?ref=${ghBranch}`;
+        const getRes = await fetch(fileUrl, { headers });
+        let sha = undefined;
+        if (getRes.ok) {
+          const data = await getRes.json();
+          sha = data.sha;
+        }
+
+        const contentEncoded = btoa(unescape(encodeURIComponent(file.content)));
+
+        const putRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}`, {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            message: `Update ${file.path} from App`,
+            content: contentEncoded,
+            sha,
+            branch: ghBranch
+          })
         });
 
-        // 3. Ensure Branch Exists
-        const branchCheckRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${ghBranch}`, { headers });
-        
-        if (branchCheckRes.status === 404) {
-            // Branch does not exist. Create it from default branch.
-            const repoRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}`, { headers });
-            if (!repoRes.ok) throw new Error("Could not access repository.");
-            const repoData = await repoRes.json();
-            const defaultBranch = repoData.default_branch || 'main';
+        if (!putRes.ok) console.error(`Failed to upload ${file.path}`);
+      }
 
-            const refRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/ref/heads/${defaultBranch}`, { headers });
-            if (!refRes.ok) throw new Error(`Could not find default branch: ${defaultBranch}`);
-            const refData = await refRes.json();
-            const sha = refData.object.sha;
-
-            const createBranchRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/git/refs`, {
-                method: 'POST',
-                headers,
-                body: JSON.stringify({
-                    ref: `refs/heads/${ghBranch}`,
-                    sha: sha
-                })
-            });
-            if (!createBranchRes.ok) throw new Error(`Failed to create branch: ${ghBranch}`);
-        }
-
-        // 4. Prepare Files
-        // CRITICAL FIX: We dynamically generate the content of projectFiles.ts to include
-        // the current PROJECT_FILES array. This ensures projectFiles.ts exists in the repo
-        // so App.tsx can import it during the build process.
-        const projectFilesContent = `export const PROJECT_FILES = ${JSON.stringify(PROJECT_FILES, null, 2)};`;
-
-        const filesToUpload = [
-            ...PROJECT_FILES,
-            {
-                path: 'projectFiles.ts',
-                content: projectFilesContent
-            },
-            { 
-                path: 'data_backup.json', 
-                content: JSON.stringify({ members, chores, logs }, null, 2) 
-            }
-        ];
-
-        // 5. Upload Files
-        for (const file of filesToUpload) {
-            const fileUrl = `https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}?ref=${ghBranch}`;
-            const getRes = await fetch(fileUrl, { headers });
-            let sha = undefined;
-            if (getRes.ok) {
-                const data = await getRes.json();
-                sha = data.sha;
-            }
-
-            const contentEncoded = btoa(unescape(encodeURIComponent(file.content)));
-            
-            const putRes = await fetch(`https://api.github.com/repos/${user.login}/${ghRepo}/contents/${file.path}`, {
-                method: 'PUT',
-                headers,
-                body: JSON.stringify({
-                    message: `Update ${file.path} from App`,
-                    content: contentEncoded,
-                    sha,
-                    branch: ghBranch
-                })
-            });
-            
-            if (!putRes.ok) console.error(`Failed to upload ${file.path}`);
-        }
-
-        alert(`Successfully uploaded to https://github.com/${user.login}/${ghRepo}/tree/${ghBranch}`);
+      alert(`Successfully uploaded to https://github.com/${user.login}/${ghRepo}/tree/${ghBranch}`);
     } catch (e: any) {
-        alert("Upload Failed: " + e.message);
-        console.error(e);
+      alert("Upload Failed: " + e.message);
+      console.error(e);
     } finally {
-        setIsUploading(false);
+      setIsUploading(false);
     }
   };
 
@@ -307,84 +557,84 @@ const App: React.FC = () => {
     let totalMinutesHouse = 0;
 
     members.forEach(m => {
-        countsByMember[m.id] = 0;
-        totalMinutesByMember[m.id] = 0;
-        distinctChoresByMember[m.id] = new Set();
+      countsByMember[m.id] = 0;
+      totalMinutesByMember[m.id] = 0;
+      distinctChoresByMember[m.id] = new Set();
     });
 
     logs.forEach(log => {
-        const chore = chores.find(c => c.id === log.choreId);
-        const estDuration = chore ? chore.estMinutes || estimateChoreDuration(chore.name) : 10;
-        
-        countsByMember[log.memberId] = (countsByMember[log.memberId] || 0) + 1;
-        totalMinutesByMember[log.memberId] = (totalMinutesByMember[log.memberId] || 0) + estDuration;
-        totalMinutesHouse += estDuration;
+      const chore = chores.find(c => c.id === log.choreId);
+      const estDuration = chore ? chore.estMinutes || estimateChoreDuration(chore.name) : 10;
 
-        if (log.choreId) distinctChoresByMember[log.memberId]?.add(log.choreId);
-        
-        const d = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
-        const hour = d.getHours();
-        
-        const dayName = getDayName(d);
-        countsByDay[dayName] = (countsByDay[dayName] || 0) + 1;
-        
-        countsByHour[hour] = (countsByHour[hour] || 0) + 1;
+      countsByMember[log.memberId] = (countsByMember[log.memberId] || 0) + 1;
+      totalMinutesByMember[log.memberId] = (totalMinutesByMember[log.memberId] || 0) + estDuration;
+      totalMinutesHouse += estDuration;
+
+      if (log.choreId) distinctChoresByMember[log.memberId]?.add(log.choreId);
+
+      const d = log.timestamp.toDate ? log.timestamp.toDate() : new Date(log.timestamp);
+      const hour = d.getHours();
+
+      const dayName = getDayName(d);
+      countsByDay[dayName] = (countsByDay[dayName] || 0) + 1;
+
+      countsByHour[hour] = (countsByHour[hour] || 0) + 1;
     });
 
-    const sortedMembers = Object.entries(countsByMember).sort((a,b) => b[1] - a[1]);
+    const sortedMembers = Object.entries(countsByMember).sort((a, b) => b[1] - a[1]);
     const leader = members.find(m => m.id === sortedMembers[0]?.[0]);
 
     const nightLogs = logs.filter(l => getHour(l.timestamp) >= 21);
     const nightCounts: Record<string, number> = {};
     nightLogs.forEach(l => nightCounts[l.memberId] = (nightCounts[l.memberId] || 0) + 1);
-    const nightOwlEntry = Object.entries(nightCounts).sort((a,b) => b[1] - a[1])[0];
+    const nightOwlEntry = Object.entries(nightCounts).sort((a, b) => b[1] - a[1])[0];
     const nightOwl = members.find(m => m.id === nightOwlEntry?.[0]);
 
     const morningLogs = logs.filter(l => getHour(l.timestamp) <= 8);
     const morningCounts: Record<string, number> = {};
     morningLogs.forEach(l => morningCounts[l.memberId] = (morningCounts[l.memberId] || 0) + 1);
-    const earlyBirdEntry = Object.entries(morningCounts).sort((a,b) => b[1] - a[1])[0];
+    const earlyBirdEntry = Object.entries(morningCounts).sort((a, b) => b[1] - a[1])[0];
     const earlyBird = members.find(m => m.id === earlyBirdEntry?.[0]);
 
     const weekendLogs = logs.filter(l => {
-        const d = l.timestamp.toDate ? l.timestamp.toDate() : new Date(l.timestamp);
-        return d.getDay() === 0 || d.getDay() === 6;
+      const d = l.timestamp.toDate ? l.timestamp.toDate() : new Date(l.timestamp);
+      return d.getDay() === 0 || d.getDay() === 6;
     });
     const weekendCounts: Record<string, number> = {};
     weekendLogs.forEach(l => weekendCounts[l.memberId] = (weekendCounts[l.memberId] || 0) + 1);
-    const warriorEntry = Object.entries(weekendCounts).sort((a,b) => b[1] - a[1])[0];
+    const warriorEntry = Object.entries(weekendCounts).sort((a, b) => b[1] - a[1])[0];
     const weekendWarrior = members.find(m => m.id === warriorEntry?.[0]);
 
-    const varietySorted = Object.entries(distinctChoresByMember).sort((a,b) => b[1].size - a[1].size);
+    const varietySorted = Object.entries(distinctChoresByMember).sort((a, b) => b[1].size - a[1].size);
     const varietyWinner = members.find(m => m.id === varietySorted[0]?.[0]);
-    
-    const busiestDayEntry = Object.entries(countsByDay).sort((a,b) => b[1] - a[1])[0];
+
+    const busiestDayEntry = Object.entries(countsByDay).sort((a, b) => b[1] - a[1])[0];
     const totalChores = logs.length;
 
     let specialist = null;
     let maxSpecialization = 0;
     members.forEach(m => {
-        const myLogs = logs.filter(l => l.memberId === m.id);
-        if (myLogs.length > 5) {
-            const myChoreCounts: Record<string, number> = {};
-            myLogs.forEach(l => myChoreCounts[l.choreId] = (myChoreCounts[l.choreId] || 0) + 1);
-            const maxSingleChore = Math.max(...Object.values(myChoreCounts));
-            const ratio = maxSingleChore / myLogs.length;
-            if (ratio > maxSpecialization) {
-                maxSpecialization = ratio;
-                specialist = m;
-            }
+      const myLogs = logs.filter(l => l.memberId === m.id);
+      if (myLogs.length > 5) {
+        const myChoreCounts: Record<string, number> = {};
+        myLogs.forEach(l => myChoreCounts[l.choreId] = (myChoreCounts[l.choreId] || 0) + 1);
+        const maxSingleChore = Math.max(...Object.values(myChoreCounts));
+        const ratio = maxSingleChore / myLogs.length;
+        if (ratio > maxSpecialization) {
+          maxSpecialization = ratio;
+          specialist = m;
         }
+      }
     });
 
-    const sortedTime = Object.entries(totalMinutesByMember).sort((a,b) => b[1] - a[1]);
+    const sortedTime = Object.entries(totalMinutesByMember).sort((a, b) => b[1] - a[1]);
     const timeLord = members.find(m => m.id === sortedTime[0]?.[0]);
     const timeLordMinutes = sortedTime[0]?.[1] || 0;
 
     const didYouKnows: string[] = [];
-    
+
     const caloriesBurned = Math.round(totalMinutesHouse * 4.5);
-    didYouKnows.push(`Did you know? The family has burned approximately ${caloriesBurned} calories doing chores. That's about ${Math.round(caloriesBurned/285)} slices of pizza!`);
+    didYouKnows.push(`Did you know? The family has burned approximately ${caloriesBurned} calories doing chores. That's about ${Math.round(caloriesBurned / 285)} slices of pizza!`);
 
     const wageValue = (totalMinutesHouse / 60) * 15;
     didYouKnows.push(`Did you know? If you hired a professional at $15/hr, this work would have cost $${wageValue.toFixed(2)}.`);
@@ -393,61 +643,61 @@ const App: React.FC = () => {
     didYouKnows.push(`Did you know? You could have watched ${moviesWatched} full-length movies in the time spent cleaning.`);
 
     if (members.length >= 2) {
-        const top = members.find(m => m.id === sortedMembers[0][0]);
-        const second = members.find(m => m.id === sortedMembers[1][0]);
-        if(top && second) {
-            const pct = Math.round(((countsByMember[top.id] - countsByMember[second.id]) / countsByMember[second.id]) * 100);
-            if (pct > 0) didYouKnows.push(`Did you know? ${top.name} is currently ${pct}% more productive than ${second.name}.`);
-        }
+      const top = members.find(m => m.id === sortedMembers[0][0]);
+      const second = members.find(m => m.id === sortedMembers[1][0]);
+      if (top && second) {
+        const pct = Math.round(((countsByMember[top.id] - countsByMember[second.id]) / countsByMember[second.id]) * 100);
+        if (pct > 0) didYouKnows.push(`Did you know? ${top.name} is currently ${pct}% more productive than ${second.name}.`);
+      }
     }
 
     chores.forEach(c => {
-        const cLogs = logs.filter(l => l.choreId === c.id);
-        if (cLogs.length > 5) {
-            const cCounts: Record<string, number> = {};
-            cLogs.forEach(l => cCounts[l.memberId] = (cCounts[l.memberId]||0)+1);
-            const ownerId = Object.keys(cCounts).reduce((a, b) => cCounts[a] > cCounts[b] ? a : b);
-            const owner = members.find(m => m.id === ownerId);
-            const pct = Math.round((cCounts[ownerId] / cLogs.length) * 100);
-            if (pct > 60 && owner) {
-                didYouKnows.push(`Did you know? ${owner.name} basically owns the "${c.name}" task, doing ${pct}% of the work.`);
-            }
+      const cLogs = logs.filter(l => l.choreId === c.id);
+      if (cLogs.length > 5) {
+        const cCounts: Record<string, number> = {};
+        cLogs.forEach(l => cCounts[l.memberId] = (cCounts[l.memberId] || 0) + 1);
+        const ownerId = Object.keys(cCounts).reduce((a, b) => cCounts[a] > cCounts[b] ? a : b);
+        const owner = members.find(m => m.id === ownerId);
+        const pct = Math.round((cCounts[ownerId] / cLogs.length) * 100);
+        if (pct > 60 && owner) {
+          didYouKnows.push(`Did you know? ${owner.name} basically owns the "${c.name}" task, doing ${pct}% of the work.`);
         }
+      }
     });
 
     if (timeLord) {
-        didYouKnows.push(`Did you know? ${timeLord.name} has spent roughly ${(timeLordMinutes/60).toFixed(1)} hours working. Give them a break!`);
+      didYouKnows.push(`Did you know? ${timeLord.name} has spent roughly ${(timeLordMinutes / 60).toFixed(1)} hours working. Give them a break!`);
     }
 
-    const weeksActive = Math.max(1, (new Date().getTime() - new Date(logs[logs.length-1]?.timestamp || new Date()).getTime()) / (1000 * 3600 * 24 * 7));
+    const weeksActive = Math.max(1, (new Date().getTime() - new Date(logs[logs.length - 1]?.timestamp || new Date()).getTime()) / (1000 * 3600 * 24 * 7));
     const avgPerWeek = Math.round(logs.length / weeksActive);
     didYouKnows.push(`Did you know? The household averages ${avgPerWeek} tasks per week.`);
 
-    const busyHour = Object.entries(countsByHour).sort((a,b) => b[1] - a[1])[0];
-    if(busyHour) {
-        const hourInt = parseInt(busyHour[0]);
-        const ampm = hourInt >= 12 ? 'PM' : 'AM';
-        const displayHour = hourInt % 12 || 12;
-        didYouKnows.push(`Did you know? The most productive time of day is around ${displayHour} ${ampm}.`);
+    const busyHour = Object.entries(countsByHour).sort((a, b) => b[1] - a[1])[0];
+    if (busyHour) {
+      const hourInt = parseInt(busyHour[0]);
+      const ampm = hourInt >= 12 ? 'PM' : 'AM';
+      const displayHour = hourInt % 12 || 12;
+      didYouKnows.push(`Did you know? The most productive time of day is around ${displayHour} ${ampm}.`);
     }
 
     const shuffledFacts = didYouKnows.sort(() => 0.5 - Math.random()).slice(0, 10);
 
     return {
-        leader,
-        nightOwl,
-        earlyBird,
-        weekendWarrior,
-        varietyWinner,
-        busiestDay: busiestDayEntry ? busiestDayEntry[0] : 'None',
-        totalChores,
-        specialist,
-        specialistRatio: Math.round(maxSpecialization * 100),
-        sortedMembers,
-        timeLord,
-        totalMinutesHouse,
-        shuffledFacts,
-        sortedTime
+      leader,
+      nightOwl,
+      earlyBird,
+      weekendWarrior,
+      varietyWinner,
+      busiestDay: busiestDayEntry ? busiestDayEntry[0] : 'None',
+      totalChores,
+      specialist,
+      specialistRatio: Math.round(maxSpecialization * 100),
+      sortedMembers,
+      timeLord,
+      totalMinutesHouse,
+      shuffledFacts,
+      sortedTime
     };
   };
 
@@ -455,48 +705,48 @@ const App: React.FC = () => {
   const renderDashboard = () => {
     const totalLogs = logs.length;
     const overallDistribution: DistributionItem[] = members.map(m => {
-        const count = logs.filter(l => l.memberId === m.id).length;
-        return { label: m.name, value: count, color: m.color, id: m.id };
+      const count = logs.filter(l => l.memberId === m.id).length;
+      return { label: m.name, value: count, color: m.color, id: m.id };
     }).sort((a, b) => b.value - a.value);
 
     // Calculate Total Household XP
     const totalHouseholdXP = logs.reduce((acc, log) => {
-        const chore = chores.find(c => c.id === log.choreId);
-        // Robust fallback if chore deleted or old data
-        const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
-        return acc + xp;
+      const chore = chores.find(c => c.id === log.choreId);
+      // Robust fallback if chore deleted or old data
+      const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
+      return acc + xp;
     }, 0);
 
-    const sevenDaysAgo = new Date(); 
+    const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
     const recentLogs = logs.filter(l => new Date(l.timestamp) >= sevenDaysAgo);
-    
+
     const mvpCounts: Record<string, number> = {};
     recentLogs.forEach(l => { mvpCounts[l.memberId] = (mvpCounts[l.memberId] || 0) + 1; });
-    
-    let weeklyMvp: Member | undefined; 
+
+    let weeklyMvp: Member | undefined;
     let maxCount = -1;
     Object.keys(mvpCounts).forEach(mId => {
-        if (mvpCounts[mId] > maxCount) { 
-          maxCount = mvpCounts[mId]; 
-          weeklyMvp = members.find(m => m.id === mId); 
-        }
+      if (mvpCounts[mId] > maxCount) {
+        maxCount = mvpCounts[mId];
+        weeklyMvp = members.find(m => m.id === mId);
+      }
     });
 
     const getXPColor = (xp: number) => {
-        if (xp < 200) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
-        if (xp < 400) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
-        return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
+      if (xp < 200) return 'bg-emerald-500/10 text-emerald-500 border-emerald-500/20';
+      if (xp < 400) return 'bg-yellow-500/10 text-yellow-500 border-yellow-500/20';
+      return 'bg-purple-500/10 text-purple-500 border-purple-500/20';
     };
 
     // Sort chores: Group by Category (alphabetical), then by Name (alphabetical)
     // Categories like 'Kitchen', 'General' etc will group together.
     const sortedChores = [...chores].sort((a, b) => {
-        const catA = a.category || 'ZZZ'; // Undefined categories go to the end
-        const catB = b.category || 'ZZZ';
-        const catCompare = catA.localeCompare(catB);
-        if (catCompare !== 0) return catCompare;
-        return a.name.localeCompare(b.name);
+      const catA = a.category || 'ZZZ'; // Undefined categories go to the end
+      const catB = b.category || 'ZZZ';
+      const catCompare = catA.localeCompare(catB);
+      if (catCompare !== 0) return catCompare;
+      return a.name.localeCompare(b.name);
     });
 
     return (
@@ -507,31 +757,98 @@ const App: React.FC = () => {
             <p className="text-gray-400 text-xs font-medium">Household Performance</p>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setView('stats')} className="p-2.5 bg-gray-800 rounded-full hover:bg-gray-700 text-purple-400 transition-colors shadow-lg shadow-purple-900/20 group"> 
-                <Trophy size={20} className="group-hover:scale-110 transition-transform" /> 
+            <button onClick={() => setView('stats')} className="p-2.5 bg-gray-800 rounded-full hover:bg-gray-700 text-purple-400 transition-colors shadow-lg shadow-purple-900/20 group">
+              <Trophy size={20} className="group-hover:scale-110 transition-transform" />
+            </button>
+            <button onClick={() => setView('achievements')} className="p-2.5 bg-gray-800 rounded-full hover:bg-gray-700 text-yellow-400 transition-colors shadow-lg shadow-yellow-900/20 group">
+              <Medal size={20} className="group-hover:scale-110 transition-transform" />
+            </button>
+            <button onClick={() => setView('analytics')} className="p-2.5 bg-gray-800 rounded-full hover:bg-gray-700 text-blue-400 transition-colors shadow-lg shadow-blue-900/20 group">
+              <BarChart3 size={20} className="group-hover:scale-110 transition-transform" />
             </button>
             <button onClick={() => setView('settings')} className="p-2.5 bg-gray-800 rounded-full hover:bg-gray-700 text-gray-400 transition-colors"> <Settings size={20} /> </button>
           </div>
         </header>
 
+        {/* PWA Install Prompt */}
+        {showInstallPrompt && (
+          <div className="bg-purple-500/20 border border-purple-500/50 rounded-xl p-4 mb-6 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <Download className="w-6 h-6 text-purple-400" />
+              <div>
+                <div className="font-bold text-white">Install App</div>
+                <div className="text-sm text-gray-300">Install for offline access and faster loading</div>
+              </div>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleInstallPWA}
+                className="px-4 py-2 bg-purple-500 hover:bg-purple-600 rounded-lg font-semibold transition-colors"
+              >
+                Install
+              </button>
+              <button
+                onClick={() => setShowInstallPrompt(false)}
+                className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Database Control */}
         <div className="bg-black/40 border border-gray-800 p-4 rounded-xl mb-6 flex flex-col gap-3">
-           <div className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest font-black">
-              <Database size={12} className="text-blue-500" /> Environment Configuration
-           </div>
-           <div className="flex gap-2">
-              <input 
-                  type="text" 
-                  value={manualAppId}
-                  onChange={(e) => setManualAppId(e.target.value)}
-                  className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs px-3 py-2 rounded-lg font-mono focus:border-blue-500 outline-none transition-all"
-                  placeholder={`Active ID: ${appId}`}
-              />
-           </div>
+          <div className="flex items-center gap-2 text-[10px] text-gray-500 uppercase tracking-widest font-black">
+            <Database size={12} className="text-blue-500" /> Environment Configuration
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={manualAppId}
+              onChange={(e) => setManualAppId(e.target.value)}
+              className="flex-1 bg-gray-900 border border-gray-700 text-white text-xs px-3 py-2 rounded-lg font-mono focus:border-blue-500 outline-none transition-all"
+              placeholder={`Active ID: ${appId}`}
+            />
+          </div>
         </div>
 
         {/* Household Level Progress */}
         <HouseholdLevel totalXP={totalHouseholdXP} />
+
+        {/* Seasonal Event Banner */}
+        {members.length > 0 && (
+          <SeasonalBanner
+            event={{
+              name: "New Year Challenge Event!",
+              description: "24 hours active",
+              timeRemaining: "24 Bonus Active",
+              xpBonus: 25
+            }}
+          />
+        )}
+
+        {/* Workload Equity & Smart Suggestions Row */}
+        {members.length > 0 && logs.length > 0 && (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
+            <WorkloadEquity members={members} logs={logs} />
+            <SmartSuggestions chores={chores} logs={logs} />
+          </div>
+        )}
+
+        {/* Family Roster */}
+        {members.length > 0 && (
+          <div className="mb-8">
+            <FamilyRoster
+              members={members}
+              logs={logs}
+              onViewSkills={(memberId) => {
+                setSelectedMemberId(memberId);
+                setShowSkillsDashboard(true);
+              }}
+            />
+          </div>
+        )}
 
         {members.length === 0 && (
           <div className="bg-blue-900/20 border border-blue-800/50 p-8 rounded-2xl mb-6 text-center animate-pulse">
@@ -549,24 +866,24 @@ const App: React.FC = () => {
 
         {members.length > 0 && (
           <div className="grid grid-cols-1 md:grid-cols-3 gap-5 mb-8">
-              <div className="bg-gray-800/40 border border-gray-800 rounded-2xl p-5 flex flex-col items-center justify-between min-h-[190px]">
-                  <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest w-full text-center mb-3">Overall Distribution</h3>
-                  <DonutChart data={overallDistribution} total={totalLogs} />
+            <div className="bg-gray-800/40 border border-gray-800 rounded-2xl p-5 flex flex-col items-center justify-between min-h-[190px]">
+              <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest w-full text-center mb-3">Overall Distribution</h3>
+              <DonutChart data={overallDistribution} total={totalLogs} />
+            </div>
+            <div className="bg-gray-800/40 border border-gray-800 rounded-2xl p-5 md:col-span-2 flex flex-col min-h-[190px]">
+              <div className="flex justify-between items-start">
+                <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Activity Log</h3>
+                {weeklyMvp && (
+                  <div className="flex items-center gap-2 bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
+                    <Award size={14} className="text-yellow-500" />
+                    <span className="text-[10px] font-bold text-yellow-500 uppercase">Weekly MVP: {weeklyMvp.name}</span>
+                  </div>
+                )}
               </div>
-              <div className="bg-gray-800/40 border border-gray-800 rounded-2xl p-5 md:col-span-2 flex flex-col min-h-[190px]">
-                   <div className="flex justify-between items-start">
-                      <h3 className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Activity Log</h3>
-                      {weeklyMvp && (
-                           <div className="flex items-center gap-2 bg-yellow-500/10 px-3 py-1 rounded-full border border-yellow-500/20">
-                               <Award size={14} className="text-yellow-500" />
-                               <span className="text-[10px] font-bold text-yellow-500 uppercase">Weekly MVP: {weeklyMvp.name}</span>
-                           </div>
-                      )}
-                   </div>
-                   <div className="flex-1 flex items-end">
-                       <WeeklyActivityGraph logs={logs} />
-                   </div>
+              <div className="flex-1 flex items-end">
+                <WeeklyActivityGraph logs={logs} />
               </div>
+            </div>
           </div>
         )}
 
@@ -576,33 +893,38 @@ const App: React.FC = () => {
             const stats = getChoreStats(chore.id);
             const lastLog = logs.find(l => l.choreId === chore.id);
             const lastMember = lastLog ? members.find(m => m.id === lastLog.memberId) : null;
-            
+
             // XP Badge Logic
             const xp = chore.xp || predictChoreValues(chore.name).xp;
             const badgeColor = getXPColor(xp);
 
             return (
-              <div 
+              <div
                 key={chore.id}
                 onClick={() => { setActiveChoreId(chore.id); setView('chore_detail'); }}
                 className="bg-gray-800/30 hover:bg-gray-800/60 border border-gray-800 rounded-2xl p-6 cursor-pointer transition-all hover:scale-[1.02] active:scale-[0.98] group"
               >
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <span className="text-[8px] font-bold uppercase tracking-wider text-gray-500">{chore.category || 'General'}</span>
-                      </div>
-                      <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{chore.name}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                          <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${badgeColor}`}>
-                              +{Math.round(xp)} XP
-                          </span>
-                          {stats.streak.count >= 3 && (
-                             <div className="bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 border border-orange-500/20">
-                               <Flame size={10} /> {stats.streak.count}X
-                             </div>
-                          )}
-                      </div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[8px] font-bold uppercase tracking-wider text-gray-500">{chore.category || 'General'}</span>
+                      {chore.difficulty && (
+                        <span className={`text-[8px] font-bold px-2 py-0.5 rounded border ${getDifficultyColor(chore.difficulty)}`}>
+                          {getDifficultyStars(chore.difficulty)} {chore.difficulty.toUpperCase()}
+                        </span>
+                      )}
+                    </div>
+                    <h3 className="text-lg font-bold text-white group-hover:text-blue-400 transition-colors">{chore.name}</h3>
+                    <div className="flex items-center gap-2 mt-1">
+                      <span className={`text-[10px] font-black px-2 py-0.5 rounded border ${badgeColor}`}>
+                        +{Math.round(xp)} XP
+                      </span>
+                      {stats.streak.count >= 3 && (
+                        <div className="bg-orange-500/10 text-orange-500 px-2 py-0.5 rounded text-[10px] font-black flex items-center gap-1 border border-orange-500/20">
+                          <Flame size={10} /> {stats.streak.count}X
+                        </div>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div className="mt-5">
@@ -613,31 +935,31 @@ const App: React.FC = () => {
                 </div>
                 <div className="mt-5 flex items-center gap-2 text-xs text-gray-500">
                   <Clock size={14} className="text-gray-600" />
-                  {lastLog ? ( 
-                    <span> Done by <span className="text-white font-semibold">{lastMember?.name || 'Unknown'}</span> {getRelativeTime(lastLog.timestamp)} </span> 
-                  ) : ( 
-                    <span className="italic">Never completed</span> 
+                  {lastLog ? (
+                    <span> Done by <span className="text-white font-semibold">{lastMember?.name || 'Unknown'}</span> {getRelativeTime(lastLog.timestamp)} </span>
+                  ) : (
+                    <span className="italic">Never completed</span>
                   )}
                 </div>
               </div>
             );
           })}
         </div>
-        
+
         {/* Global Summary Stats at the bottom as requested */}
         {logs.length > 5 && (
-            <div className="mt-12 pt-8 border-t border-gray-800">
-                <h3 className="text-gray-500 font-bold text-sm mb-6 flex items-center gap-2"><ChartColumn size={18}/> Household Pulse</h3>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <VerticalBarChart data={overallDistribution} title="All-Time Leaderboard (Count)" />
-                    <div className="grid grid-cols-2 gap-4">
-                        <StatCard icon={<CheckCircle size={16} />} title="Total Chores" value={logs.length} subtext="Lifetime completions" colorClass="text-blue-400" />
-                        <StatCard icon={<Users size={16} />} title="Family Size" value={members.length} subtext="Active members" colorClass="text-purple-400" />
-                        <StatCard icon={<Award size={16} />} title="Avg Daily" value={Math.round(logs.length / Math.max(1, (new Date().getTime() - new Date(logs[logs.length-1]?.timestamp || new Date()).getTime()) / (1000 * 3600 * 24)))} subtext="Tasks per day" colorClass="text-emerald-400" />
-                        <StatCard icon={<Target size={16} />} title="Active Chores" value={chores.length} subtext="In rotation" colorClass="text-orange-400" />
-                    </div>
-                </div>
+          <div className="mt-12 pt-8 border-t border-gray-800">
+            <h3 className="text-gray-500 font-bold text-sm mb-6 flex items-center gap-2"><ChartColumn size={18} /> Household Pulse</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <VerticalBarChart data={overallDistribution} title="All-Time Leaderboard (Count)" />
+              <div className="grid grid-cols-2 gap-4">
+                <StatCard icon={<CheckCircle size={16} />} title="Total Chores" value={logs.length} subtext="Lifetime completions" colorClass="text-blue-400" />
+                <StatCard icon={<Users size={16} />} title="Family Size" value={members.length} subtext="Active members" colorClass="text-purple-400" />
+                <StatCard icon={<Award size={16} />} title="Avg Daily" value={Math.round(logs.length / Math.max(1, (new Date().getTime() - new Date(logs[logs.length - 1]?.timestamp || new Date()).getTime()) / (1000 * 3600 * 24)))} subtext="Tasks per day" colorClass="text-emerald-400" />
+                <StatCard icon={<Target size={16} />} title="Active Chores" value={chores.length} subtext="In rotation" colorClass="text-orange-400" />
+              </div>
             </div>
+          </div>
         )}
       </div>
     );
@@ -648,20 +970,20 @@ const App: React.FC = () => {
     if (!chore) return null;
     const stats = getChoreStats(chore.id);
     const choreLogs = logs.filter(l => l.choreId === chore.id);
-    
+
     // Day of week breakdown for this chore
     const dayCounts: Record<string, number> = {};
     choreLogs.forEach(l => {
-        const d = getDayName(l.timestamp);
-        dayCounts[d] = (dayCounts[d] || 0) + 1;
+      const d = getDayName(l.timestamp);
+      dayCounts[d] = (dayCounts[d] || 0) + 1;
     });
-    const busiestDay = Object.entries(dayCounts).sort((a,b) => b[1] - a[1])[0];
+    const busiestDay = Object.entries(dayCounts).sort((a, b) => b[1] - a[1])[0];
 
     // Estimated time per person
     const estTime = estimateChoreDuration(chore.name);
     const timeSpent: Record<string, number> = {};
     choreLogs.forEach(l => {
-        timeSpent[l.memberId] = (timeSpent[l.memberId] || 0) + estTime;
+      timeSpent[l.memberId] = (timeSpent[l.memberId] || 0) + estTime;
     });
 
     return (
@@ -675,25 +997,25 @@ const App: React.FC = () => {
           <h2 className="text-[10px] font-black tracking-widest text-gray-500 mb-6 uppercase">Quick Log Completion</h2>
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
             {members.map(member => {
-                const memberLogCount = choreLogs.filter(l => l.memberId === member.id).length;
-                return (
-                  <button
-                    key={member.id}
-                    onClick={() => handleLogChore(chore.id, member.id)}
-                    className="group relative overflow-hidden bg-gray-900 hover:bg-blue-600 border border-gray-800 hover:border-blue-500 rounded-2xl p-5 transition-all duration-300 flex flex-col items-center gap-3"
-                  >
-                    <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-xl transition-transform group-hover:scale-110" style={{ backgroundColor: member.color }}> 
-                      {member.name.charAt(0)} 
+              const memberLogCount = choreLogs.filter(l => l.memberId === member.id).length;
+              return (
+                <button
+                  key={member.id}
+                  onClick={() => handleLogChore(chore.id, member.id)}
+                  className="group relative overflow-hidden bg-gray-900 hover:bg-blue-600 border border-gray-800 hover:border-blue-500 rounded-2xl p-5 transition-all duration-300 flex flex-col items-center gap-3"
+                >
+                  <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-xl font-black text-white shadow-xl transition-transform group-hover:scale-110" style={{ backgroundColor: member.color }}>
+                    {member.name.charAt(0)}
+                  </div>
+                  <div className="w-full text-center">
+                    <span className="font-bold text-gray-300 group-hover:text-white transition-colors">{member.name}</span>
+                    {/* Sparkline for specific chore contribution */}
+                    <div className="mt-1 opacity-60 group-hover:opacity-100">
+                      <MiniContributionBar value={memberLogCount} total={stats.total} color={member.color} />
                     </div>
-                    <div className="w-full text-center">
-                        <span className="font-bold text-gray-300 group-hover:text-white transition-colors">{member.name}</span>
-                        {/* Sparkline for specific chore contribution */}
-                        <div className="mt-1 opacity-60 group-hover:opacity-100">
-                            <MiniContributionBar value={memberLogCount} total={stats.total} color={member.color} />
-                        </div>
-                    </div>
-                  </button>
-                );
+                  </div>
+                </button>
+              );
             })}
           </div>
           <div className="mt-8 pt-6 border-t border-gray-800">
@@ -701,7 +1023,7 @@ const App: React.FC = () => {
               <summary className="cursor-pointer hover:text-white flex items-center gap-2 transition-colors"> <Calendar size={14} /> Log historical task </summary>
               <div className="mt-4 flex flex-col sm:flex-row gap-3 p-4 bg-gray-900 rounded-2xl border border-gray-800">
                 <input type="datetime-local" className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" onChange={(e) => setManualDate(e.target.value)} />
-                <select className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" onChange={(e) => { if(e.target.value) { handleLogChore(chore.id, e.target.value, manualDate); setManualDate(''); } }} defaultValue="" >
+                <select className="flex-1 bg-gray-800 border border-gray-700 text-white rounded-xl px-4 py-2.5 text-sm outline-none focus:border-blue-500" onChange={(e) => { if (e.target.value) { handleLogChore(chore.id, e.target.value, manualDate); setManualDate(''); } }} defaultValue="" >
                   <option value="" disabled>Select Member</option>
                   {members.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
                 </select>
@@ -712,77 +1034,77 @@ const App: React.FC = () => {
 
         {/* VISUALS SECTION */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             <section className="bg-gray-800/40 border border-gray-800 p-6 rounded-2xl flex flex-col h-full">
-                 <h3 className="text-gray-500 text-[10px] font-black uppercase mb-6 flex items-center gap-2"> <PieChart size={14} className="text-purple-500" /> Member Share </h3>
-                 <div className="flex-1 flex flex-col justify-center">
-                    <DistributionBar data={stats.distribution} total={stats.total} />
-                    <div className="mt-6 space-y-3">
-                        {stats.distribution.map(d => (
-                            <div key={d.id} className="flex items-center justify-between text-xs text-gray-400">
-                                <div className="flex items-center gap-2">
-                                    <div className="w-2 h-2 rounded-full" style={{backgroundColor: d.color}}></div>
-                                    <span className="font-medium text-gray-300">{d.label}</span>
-                                </div>
-                                <span className="font-mono">{Math.round((d.value/stats.total)*100 || 0)}% ({d.value})</span>
-                            </div>
-                        ))}
+          <section className="bg-gray-800/40 border border-gray-800 p-6 rounded-2xl flex flex-col h-full">
+            <h3 className="text-gray-500 text-[10px] font-black uppercase mb-6 flex items-center gap-2"> <PieChart size={14} className="text-purple-500" /> Member Share </h3>
+            <div className="flex-1 flex flex-col justify-center">
+              <DistributionBar data={stats.distribution} total={stats.total} />
+              <div className="mt-6 space-y-3">
+                {stats.distribution.map(d => (
+                  <div key={d.id} className="flex items-center justify-between text-xs text-gray-400">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ backgroundColor: d.color }}></div>
+                      <span className="font-medium text-gray-300">{d.label}</span>
                     </div>
-                 </div>
-             </section>
+                    <span className="font-mono">{Math.round((d.value / stats.total) * 100 || 0)}% ({d.value})</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
 
-             <section className="bg-gray-800/40 border border-gray-800 p-6 rounded-2xl flex flex-col h-full">
-                 <h3 className="text-gray-500 text-[10px] font-black uppercase mb-6 flex items-center gap-2"> <Activity size={14} className="text-blue-500" /> 7-Day Trend </h3>
-                 <div className="flex-1 flex items-end min-h-[150px]">
-                    <WeeklyActivityGraph logs={choreLogs} />
-                 </div>
-                 <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-800/50">
-                     <div>
-                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Most Active Day</span>
-                        <span className="text-xs font-bold text-white">{busiestDay ? busiestDay[0] : 'N/A'}</span>
-                     </div>
-                     <div className="text-right">
-                        <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Est. Time Spent</span>
-                        <span className="text-xs font-bold text-blue-400">{(stats.total * estTime / 60).toFixed(1)} Hours</span>
-                     </div>
-                 </div>
-             </section>
+          <section className="bg-gray-800/40 border border-gray-800 p-6 rounded-2xl flex flex-col h-full">
+            <h3 className="text-gray-500 text-[10px] font-black uppercase mb-6 flex items-center gap-2"> <Activity size={14} className="text-blue-500" /> 7-Day Trend </h3>
+            <div className="flex-1 flex items-end min-h-[150px]">
+              <WeeklyActivityGraph logs={choreLogs} />
+            </div>
+            <div className="flex justify-between items-center mt-4 pt-4 border-t border-gray-800/50">
+              <div>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Most Active Day</span>
+                <span className="text-xs font-bold text-white">{busiestDay ? busiestDay[0] : 'N/A'}</span>
+              </div>
+              <div className="text-right">
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-widest block">Est. Time Spent</span>
+                <span className="text-xs font-bold text-blue-400">{(stats.total * estTime / 60).toFixed(1)} Hours</span>
+              </div>
+            </div>
+          </section>
         </div>
 
         {/* FULL HISTORY SECTION */}
         <section className="mt-8">
-            <div className="flex items-center justify-between mb-5">
-                <h3 className="text-white font-bold flex items-center gap-2"> <Clock size={20} className="text-gray-400"/> Full History </h3>
-                <span className="text-xs font-bold text-gray-500 bg-gray-900 px-3 py-1 rounded-full border border-gray-800">{choreLogs.length} Records</span>
+          <div className="flex items-center justify-between mb-5">
+            <h3 className="text-white font-bold flex items-center gap-2"> <Clock size={20} className="text-gray-400" /> Full History </h3>
+            <span className="text-xs font-bold text-gray-500 bg-gray-900 px-3 py-1 rounded-full border border-gray-800">{choreLogs.length} Records</span>
+          </div>
+
+          <div className="bg-gray-900/40 rounded-3xl overflow-hidden border border-gray-800">
+            <div className="overflow-y-auto max-h-[600px] scrollbar-hide">
+              {choreLogs.length === 0 ? (
+                <div className="p-10 text-center text-gray-600 italic">No activity yet.</div>
+              ) : (
+                choreLogs.map((log, idx) => {
+                  const member = members.find(m => m.id === log.memberId);
+                  return (
+                    <div key={log.id} className={`p-4 flex items-center justify-between hover:bg-gray-800/20 transition-colors ${idx !== choreLogs.length - 1 ? 'border-b border-gray-800' : ''}`}>
+                      <div className="flex items-center gap-4">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-lg" style={{ backgroundColor: member?.color || '#333' }}> {member?.name.charAt(0)} </div>
+                        <div>
+                          <div className="text-sm font-bold text-white">{member?.name || 'Unknown User'}</div>
+                          <div className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2">
+                            {formatDate(log.timestamp)}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {log.isManual && <span className="hidden sm:inline-block text-[8px] font-black bg-gray-800 text-gray-400 px-2 py-1 rounded uppercase tracking-wider border border-gray-700">Manual</span>}
+                        <button onClick={() => handleDeleteItem('logs', log.id)} className="text-gray-600 hover:text-red-500 p-2 transition-colors rounded-lg hover:bg-gray-800"> <Trash size={16} /> </button>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
-            
-            <div className="bg-gray-900/40 rounded-3xl overflow-hidden border border-gray-800">
-                <div className="overflow-y-auto max-h-[600px] scrollbar-hide">
-                    {choreLogs.length === 0 ? (
-                    <div className="p-10 text-center text-gray-600 italic">No activity yet.</div>
-                    ) : (
-                    choreLogs.map((log, idx) => {
-                        const member = members.find(m => m.id === log.memberId);
-                        return (
-                            <div key={log.id} className={`p-4 flex items-center justify-between hover:bg-gray-800/20 transition-colors ${idx !== choreLogs.length - 1 ? 'border-b border-gray-800' : ''}`}>
-                                <div className="flex items-center gap-4">
-                                    <div className="w-10 h-10 rounded-xl flex items-center justify-center text-xs font-black text-white shadow-lg" style={{ backgroundColor: member?.color || '#333' }}> {member?.name.charAt(0)} </div>
-                                    <div>
-                                        <div className="text-sm font-bold text-white">{member?.name || 'Unknown User'}</div>
-                                        <div className="text-[10px] font-bold text-gray-500 uppercase flex items-center gap-2"> 
-                                            {formatDate(log.timestamp)} 
-                                        </div>
-                                    </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                    {log.isManual && <span className="hidden sm:inline-block text-[8px] font-black bg-gray-800 text-gray-400 px-2 py-1 rounded uppercase tracking-wider border border-gray-700">Manual</span>}
-                                    <button onClick={() => handleDeleteItem('logs', log.id)} className="text-gray-600 hover:text-red-500 p-2 transition-colors rounded-lg hover:bg-gray-800"> <Trash size={16} /> </button>
-                                </div>
-                            </div>
-                        );
-                    })
-                    )}
-                </div>
-            </div>
+          </div>
         </section>
       </div>
     );
@@ -791,178 +1113,178 @@ const App: React.FC = () => {
   const renderStats = () => {
     const funStats = calculateFunStats();
     if (!funStats) return (
-        <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
-            <Trophy size={48} className="text-gray-700 mb-4" />
-            <h2 className="text-xl font-bold text-white">Not Enough Data</h2>
-            <p className="text-gray-500 text-sm mt-2">Log some chores to unlock the hall of fame!</p>
-            <button onClick={() => setView('dashboard')} className="mt-6 px-6 py-2 bg-blue-600 rounded-lg text-white font-bold">Back Home</button>
-        </div>
+      <div className="flex flex-col items-center justify-center min-h-[50vh] text-center p-8">
+        <Trophy size={48} className="text-gray-700 mb-4" />
+        <h2 className="text-xl font-bold text-white">Not Enough Data</h2>
+        <p className="text-gray-500 text-sm mt-2">Log some chores to unlock the hall of fame!</p>
+        <button onClick={() => setView('dashboard')} className="mt-6 px-6 py-2 bg-blue-600 rounded-lg text-white font-bold">Back Home</button>
+      </div>
     );
 
     const leaderboardData = funStats.sortedMembers.map(([id, count]) => {
-        const m = members.find(mem => mem.id === id);
-        return { label: m?.name || 'Unknown', value: count, color: m?.color || '#333', id };
+      const m = members.find(mem => mem.id === id);
+      return { label: m?.name || 'Unknown', value: count, color: m?.color || '#333', id };
     });
 
     // XP Leaderboard
     const xpByMember: Record<string, number> = {};
     members.forEach(m => xpByMember[m.id] = 0);
     logs.forEach(log => {
-        const chore = chores.find(c => c.id === log.choreId);
-        // Fallback for XP if not found on chore object
-        const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
-        if (xpByMember[log.memberId] !== undefined) {
-            xpByMember[log.memberId] += xp;
-        }
+      const chore = chores.find(c => c.id === log.choreId);
+      // Fallback for XP if not found on chore object
+      const xp = chore?.xp || (chore ? predictChoreValues(chore.name).xp : 0);
+      if (xpByMember[log.memberId] !== undefined) {
+        xpByMember[log.memberId] += xp;
+      }
     });
-    
+
     const xpLeaderboardData = members.map(m => ({
-        label: m.name,
-        value: Math.round(xpByMember[m.id]),
-        color: m.color,
-        id: m.id
-    })).sort((a,b) => b.value - a.value);
+      label: m.name,
+      value: Math.round(xpByMember[m.id]),
+      color: m.color,
+      id: m.id
+    })).sort((a, b) => b.value - a.value);
 
     // Time Leaderboard
     const timeData = funStats.sortedTime.map(([id, mins]) => {
-        const m = members.find(mem => mem.id === id);
-        return { label: m?.name || 'Unknown', value: Math.round(mins/60*10)/10, color: m?.color || '#333', id };
+      const m = members.find(mem => mem.id === id);
+      return { label: m?.name || 'Unknown', value: Math.round(mins / 60 * 10) / 10, color: m?.color || '#333', id };
     });
 
     return (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <header className="flex items-center gap-4 mb-8">
-                <button onClick={() => setView('dashboard')} className="p-2.5 hover:bg-gray-800 rounded-full text-gray-400 transition-all"> <ArrowLeft size={24} /> </button>
-                <div>
-                    <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2"><Trophy className="text-yellow-500" /> Hall of Fame</h1>
-                    <p className="text-gray-500 text-xs font-medium">Fun facts and competitive stats</p>
-                </div>
-            </header>
+      <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <header className="flex items-center gap-4 mb-8">
+          <button onClick={() => setView('dashboard')} className="p-2.5 hover:bg-gray-800 rounded-full text-gray-400 transition-all"> <ArrowLeft size={24} /> </button>
+          <div>
+            <h1 className="text-2xl font-bold text-white tracking-tight flex items-center gap-2"><Trophy className="text-yellow-500" /> Hall of Fame</h1>
+            <p className="text-gray-500 text-xs font-medium">Fun facts and competitive stats</p>
+          </div>
+        </header>
 
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <StatCard 
-                    icon={<Crown size={20} />} 
-                    title="The Leader" 
-                    value={funStats.leader?.name || '-'} 
-                    subtext="Most chores done" 
-                    colorClass="text-yellow-400 bg-yellow-400/10" 
-                 />
-                 <StatCard 
-                    icon={<Hourglass size={20} />} 
-                    title="The Time Lord" 
-                    value={funStats.timeLord?.name || '-'} 
-                    subtext="Most time spent" 
-                    colorClass="text-pink-400 bg-pink-400/10" 
-                 />
-                 <StatCard 
-                    icon={<Moon size={20} />} 
-                    title="Night Owl" 
-                    value={funStats.nightOwl?.name || '-'} 
-                    subtext="Most active after 9PM" 
-                    colorClass="text-purple-400 bg-purple-400/10" 
-                 />
-                 <StatCard 
-                    icon={<Sun size={20} />} 
-                    title="Early Bird" 
-                    value={funStats.earlyBird?.name || '-'} 
-                    subtext="Most active before 8AM" 
-                    colorClass="text-orange-400 bg-orange-400/10" 
-                 />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <VerticalBarChart data={xpLeaderboardData} title="XP Leaderboard (Total Points)" />
-                <VerticalBarChart data={leaderboardData} title="Task Count Leaderboard" />
-            </div>
-            
-            <div className="grid grid-cols-1">
-                <VerticalBarChart data={timeData} title="Hours Worked Leaderboard" />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="md:col-span-2 space-y-6">
-                    <div className="p-5 bg-gray-900/40 border border-gray-800 rounded-2xl">
-                        <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2"><ChartColumn size={14}/> Daily Volume (Last 7 Days)</h3>
-                        <DayOfWeekChart logs={logs} />
-                    </div>
-                    <DayOfWeekChart logs={logs} />
-                </div>
-                <div className="grid grid-cols-1 gap-4">
-                    <StatCard 
-                        icon={<Zap size={20} />} 
-                        title="Busiest Day" 
-                        value={funStats.busiestDay} 
-                        subtext="Peak activity" 
-                        colorClass="text-red-400" 
-                        className="h-full justify-center"
-                    />
-                    <StatCard 
-                        icon={<Coffee size={20} />} 
-                        title="Weekend Warrior" 
-                        value={funStats.weekendWarrior?.name || '-'} 
-                        subtext="Most active Sat/Sun" 
-                        colorClass="text-blue-400 bg-blue-400/10" 
-                        className="h-full justify-center"
-                    />
-                </div>
-            </div>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-                 <StatCard 
-                    icon={<CheckCircle size={20} />} 
-                    title="Total Completed" 
-                    value={funStats.totalChores} 
-                    subtext="Household Total" 
-                    colorClass="text-emerald-400" 
-                 />
-                 <StatCard 
-                    icon={<Clock size={20} />} 
-                    title="Hours Logged" 
-                    value={Math.round(funStats.totalMinutesHouse / 60)} 
-                    subtext="Estimated Total" 
-                    colorClass="text-teal-400" 
-                 />
-                <StatCard 
-                    icon={<Target size={20} />} 
-                    title="The Specialist" 
-                    value={funStats.specialist?.name || '-'} 
-                    subtext={`${funStats.specialistRatio}% on one chore`} 
-                    colorClass="text-indigo-400" 
-                />
-                <StatCard 
-                    icon={<TrendingUp size={20} />} 
-                    title="Variety Award" 
-                    value={funStats.varietyWinner?.name || '-'} 
-                    subtext="Most diverse tasks" 
-                    colorClass="text-cyan-400" 
-                />
-            </div>
-            
-            <section className="pt-6 border-t border-gray-800">
-                <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Lightbulb className="text-yellow-300" size={20}/> Did You Know?</h3>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {funStats.shuffledFacts.map((fact, i) => (
-                        <div key={i} className="bg-gray-800/40 p-4 rounded-xl border border-gray-800 text-xs text-gray-400 flex gap-3 items-start hover:bg-gray-800/60 transition-colors">
-                            <div className="mt-0.5 min-w-[16px]"><Lightbulb size={14} className="text-yellow-500/50" /></div>
-                            <p>{fact}</p>
-                        </div>
-                    ))}
-                </div>
-            </section>
-
-            <div className="p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-2xl border border-blue-500/20 text-center">
-                <h3 className="text-blue-300 font-bold mb-2">Keep it up!</h3>
-                <p className="text-sm text-gray-400 max-w-md mx-auto">Tracking these stats helps balance the load and makes chores a little less boring. The current leader is <span className="text-white font-bold">{funStats.leader?.name}</span>!</p>
-            </div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            icon={<Crown size={20} />}
+            title="The Leader"
+            value={funStats.leader?.name || '-'}
+            subtext="Most chores done"
+            colorClass="text-yellow-400 bg-yellow-400/10"
+          />
+          <StatCard
+            icon={<Hourglass size={20} />}
+            title="The Time Lord"
+            value={funStats.timeLord?.name || '-'}
+            subtext="Most time spent"
+            colorClass="text-pink-400 bg-pink-400/10"
+          />
+          <StatCard
+            icon={<Moon size={20} />}
+            title="Night Owl"
+            value={funStats.nightOwl?.name || '-'}
+            subtext="Most active after 9PM"
+            colorClass="text-purple-400 bg-purple-400/10"
+          />
+          <StatCard
+            icon={<Sun size={20} />}
+            title="Early Bird"
+            value={funStats.earlyBird?.name || '-'}
+            subtext="Most active before 8AM"
+            colorClass="text-orange-400 bg-orange-400/10"
+          />
         </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          <VerticalBarChart data={xpLeaderboardData} title="XP Leaderboard (Total Points)" />
+          <VerticalBarChart data={leaderboardData} title="Task Count Leaderboard" />
+        </div>
+
+        <div className="grid grid-cols-1">
+          <VerticalBarChart data={timeData} title="Hours Worked Leaderboard" />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <div className="md:col-span-2 space-y-6">
+            <div className="p-5 bg-gray-900/40 border border-gray-800 rounded-2xl">
+              <h3 className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-4 flex items-center gap-2"><ChartColumn size={14} /> Daily Volume (Last 7 Days)</h3>
+              <DayOfWeekChart logs={logs} />
+            </div>
+            <DayOfWeekChart logs={logs} />
+          </div>
+          <div className="grid grid-cols-1 gap-4">
+            <StatCard
+              icon={<Zap size={20} />}
+              title="Busiest Day"
+              value={funStats.busiestDay}
+              subtext="Peak activity"
+              colorClass="text-red-400"
+              className="h-full justify-center"
+            />
+            <StatCard
+              icon={<Coffee size={20} />}
+              title="Weekend Warrior"
+              value={funStats.weekendWarrior?.name || '-'}
+              subtext="Most active Sat/Sun"
+              colorClass="text-blue-400 bg-blue-400/10"
+              className="h-full justify-center"
+            />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          <StatCard
+            icon={<CheckCircle size={20} />}
+            title="Total Completed"
+            value={funStats.totalChores}
+            subtext="Household Total"
+            colorClass="text-emerald-400"
+          />
+          <StatCard
+            icon={<Clock size={20} />}
+            title="Hours Logged"
+            value={Math.round(funStats.totalMinutesHouse / 60)}
+            subtext="Estimated Total"
+            colorClass="text-teal-400"
+          />
+          <StatCard
+            icon={<Target size={20} />}
+            title="The Specialist"
+            value={funStats.specialist?.name || '-'}
+            subtext={`${funStats.specialistRatio}% on one chore`}
+            colorClass="text-indigo-400"
+          />
+          <StatCard
+            icon={<TrendingUp size={20} />}
+            title="Variety Award"
+            value={funStats.varietyWinner?.name || '-'}
+            subtext="Most diverse tasks"
+            colorClass="text-cyan-400"
+          />
+        </div>
+
+        <section className="pt-6 border-t border-gray-800">
+          <h3 className="text-white font-bold mb-4 flex items-center gap-2"><Lightbulb className="text-yellow-300" size={20} /> Did You Know?</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {funStats.shuffledFacts.map((fact, i) => (
+              <div key={i} className="bg-gray-800/40 p-4 rounded-xl border border-gray-800 text-xs text-gray-400 flex gap-3 items-start hover:bg-gray-800/60 transition-colors">
+                <div className="mt-0.5 min-w-[16px]"><Lightbulb size={14} className="text-yellow-500/50" /></div>
+                <p>{fact}</p>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <div className="p-6 bg-gradient-to-r from-blue-900/20 to-purple-900/20 rounded-2xl border border-blue-500/20 text-center">
+          <h3 className="text-blue-300 font-bold mb-2">Keep it up!</h3>
+          <p className="text-sm text-gray-400 max-w-md mx-auto">Tracking these stats helps balance the load and makes chores a little less boring. The current leader is <span className="text-white font-bold">{funStats.leader?.name}</span>!</p>
+        </div>
+      </div>
     );
   };
 
   const renderSettings = () => (
     <div className="space-y-8 max-w-xl mx-auto">
       <header className="flex items-center gap-4 mb-8">
-          <button onClick={() => setView('dashboard')} className="p-2.5 hover:bg-gray-800 rounded-full text-gray-400"> <ArrowLeft size={24} /> </button>
-          <h1 className="text-2xl font-bold text-white tracking-tight">Management</h1>
+        <button onClick={() => setView('dashboard')} className="p-2.5 hover:bg-gray-800 rounded-full text-gray-400"> <ArrowLeft size={24} /> </button>
+        <h1 className="text-2xl font-bold text-white tracking-tight">Management</h1>
       </header>
 
       {/* Members Section */}
@@ -973,16 +1295,24 @@ const App: React.FC = () => {
           <button type="submit" className="bg-blue-600 hover:bg-blue-500 text-white px-8 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-blue-900/20"> Add </button>
         </form>
         <div className="space-y-2">
-            {members.map(member => (
+          {members.map(member => (
             <div key={member.id} className="flex justify-between items-center bg-gray-900/40 p-4 rounded-2xl border border-gray-800 group hover:border-blue-500/30 transition-all">
-                <div className="flex items-center gap-4">
+              <div className="flex items-center gap-4">
                 <div className="w-8 h-8 rounded-xl shadow-lg" style={{ backgroundColor: member.color }}></div>
                 <span className="text-gray-200 font-bold">{member.name}</span>
-                </div>
-                <button onClick={() => handleDeleteItem('members', member.id)} className="text-gray-700 hover:text-red-500 transition-colors p-2"> <Trash size={18} /> </button>
+              </div>
+              <button onClick={() => handleDeleteItem('members', member.id)} className="text-gray-700 hover:text-red-500 transition-colors p-2"> <Trash size={18} /> </button>
             </div>
-            ))}
+          ))}
         </div>
+      </section>
+
+      {/* Theme Selector */}
+      <section className="bg-gray-800/40 border border-gray-800 rounded-3xl p-6">
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+          🎨 Theme Customization
+        </h2>
+        <ThemeSelector currentTheme={currentTheme} onThemeChange={setCurrentTheme} />
       </section>
 
       {/* Chores Section */}
@@ -990,177 +1320,497 @@ const App: React.FC = () => {
         <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <CheckCircle size={20} className="text-emerald-500" /> Task Library </h2>
         <form onSubmit={handleAddChore} className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="flex-1 flex gap-3">
-            <input 
-                type="text" 
-                placeholder="Task Name (e.g. Vacuum)" 
-                className="flex-[2] bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700" 
-                value={newChoreName} 
-                onChange={(e) => setNewChoreName(e.target.value)} 
+            <input
+              type="text"
+              placeholder="Task Name (e.g. Vacuum)"
+              className="flex-[2] bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700"
+              value={newChoreName}
+              onChange={(e) => setNewChoreName(e.target.value)}
             />
-            <input 
-                type="text" 
-                placeholder="Category" 
-                className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700" 
-                value={newChoreCategory} 
-                onChange={(e) => setNewChoreCategory(e.target.value)} 
-                list="category-suggestions"
+            <input
+              type="text"
+              placeholder="Category"
+              className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all placeholder:text-gray-700"
+              value={newChoreCategory}
+              onChange={(e) => setNewChoreCategory(e.target.value)}
+              list="category-suggestions"
             />
             <datalist id="category-suggestions">
-                <option value="Kitchen" />
-                <option value="Bathroom" />
-                <option value="Living Room" />
-                <option value="Bedroom" />
-                <option value="Outdoor" />
-                <option value="Pets" />
+              <option value="Kitchen" />
+              <option value="Bathroom" />
+              <option value="Living Room" />
+              <option value="Bedroom" />
+              <option value="Outdoor" />
+              <option value="Pets" />
             </datalist>
+            <select
+              value={newChoreDifficulty}
+              onChange={(e) => setNewChoreDifficulty(e.target.value as DifficultyTier)}
+              className="flex-1 bg-gray-900 border border-gray-800 text-white rounded-2xl px-5 py-3 focus:border-emerald-500 outline-none transition-all"
+            >
+              <option value="beginner">{getDifficultyStars('beginner')} Beginner ({DIFFICULTY_XP_MAP.beginner} XP)</option>
+              <option value="intermediate">{getDifficultyStars('intermediate')} Intermediate ({DIFFICULTY_XP_MAP.intermediate} XP)</option>
+              <option value="advanced">{getDifficultyStars('advanced')} Advanced ({DIFFICULTY_XP_MAP.advanced} XP)</option>
+              <option value="expert">{getDifficultyStars('expert')} Expert ({DIFFICULTY_XP_MAP.expert} XP)</option>
+              <option value="master">{getDifficultyStars('master')} Master ({DIFFICULTY_XP_MAP.master} XP)</option>
+            </select>
           </div>
           <button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white px-8 py-3 rounded-2xl font-bold transition-all shadow-lg shadow-emerald-900/20"> Add </button>
         </form>
         <div className="space-y-2">
-            {chores.map(chore => (
+          {chores.map(chore => (
             <div key={chore.id} className="flex justify-between items-center bg-gray-900/40 p-4 rounded-2xl border border-gray-800 group hover:border-emerald-500/30 transition-all">
-                <div className="flex flex-col">
-                    <span className="text-gray-200 font-bold">{chore.name}</span>
-                    <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{chore.category}</span>
-                </div>
-                <button onClick={() => handleDeleteItem('chores', chore.id)} className="text-gray-700 hover:text-red-500 transition-colors p-2"> <Trash size={18} /> </button>
+              <div className="flex flex-col">
+                <span className="text-gray-200 font-bold">{chore.name}</span>
+                <span className="text-[10px] text-gray-500 font-bold uppercase tracking-wider">{chore.category}</span>
+              </div>
+              <button onClick={() => handleDeleteItem('chores', chore.id)} className="text-gray-700 hover:text-red-500 transition-colors p-2"> <Trash size={18} /> </button>
             </div>
-            ))}
+          ))}
+        </div>
+      </section>
+
+      {/* Sound & Haptics */}
+      <section className="bg-gray-800/40 border border-gray-800 rounded-3xl p-6">
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2">
+          🔊 Sound & Haptics
+        </h2>
+
+        <div className="space-y-4">
+          <button
+            onClick={handleTestSound}
+            className="w-full bg-purple-600 hover:bg-purple-500 text-white px-6 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2"
+          >
+            🎵 Test Sound & Haptics
+          </button>
+
+          <p className="text-xs text-gray-500 text-center">
+            Sounds play automatically when completing chores
+          </p>
+
+          <div className="flex items-center justify-between p-4 bg-gray-900/40 rounded-xl">
+            <span className="text-sm text-gray-300">Enable Sounds</span>
+            <button
+              onClick={() => setSoundEnabled(!soundEnabled)}
+              className={`w-12 h-6 rounded-full transition-all ${soundEnabled ? 'bg-purple-600' : 'bg-gray-700'}`}
+            >
+              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${soundEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
+
+          <div className="flex items-center justify-between p-4 bg-gray-900/40 rounded-xl">
+            <span className="text-sm text-gray-300">Enable Haptics</span>
+            <button
+              onClick={() => setHapticsEnabled(!hapticsEnabled)}
+              className={`w-12 h-6 rounded-full transition-all ${hapticsEnabled ? 'bg-purple-600' : 'bg-gray-700'}`}
+            >
+              <div className={`w-5 h-5 bg-white rounded-full transition-transform ${hapticsEnabled ? 'translate-x-6' : 'translate-x-0.5'}`} />
+            </button>
+          </div>
         </div>
       </section>
 
       {/* GitHub Integration */}
       <section className="bg-gray-800/40 border border-gray-800 rounded-3xl p-6">
-         <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <Github size={20} className="text-white" /> GitHub Integration </h2>
-         
-         <div className="bg-gray-900/60 p-6 rounded-2xl border border-gray-800 space-y-4">
-             <div className="flex flex-col gap-1">
-                 <label className="text-[10px] uppercase font-bold text-gray-500">Personal Access Token (Repo Scope)</label>
-                 <div className="relative">
-                    <input 
-                        type={showGhToken ? "text" : "password"}
-                        placeholder="ghp_xxxxxxxxxxxx" 
-                        className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono pr-20"
-                        value={ghToken}
-                        onChange={(e) => setGhToken(e.target.value)}
-                        autoComplete="off"
-                        spellCheck="false"
-                    />
-                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
-                        <button 
-                            onClick={async () => {
-                                try {
-                                    const text = await navigator.clipboard.readText();
-                                    setGhToken(text);
-                                } catch (err) {
-                                    alert("Clipboard access denied. Please type manually.");
-                                }
-                            }}
-                            className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 transition-colors"
-                            title="Paste"
-                        >
-                            <Clipboard size={14} />
-                        </button>
-                        <button 
-                            onClick={() => setShowGhToken(!showGhToken)}
-                            className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 transition-colors"
-                        >
-                            {showGhToken ? <EyeOff size={14} /> : <Eye size={14} />}
-                        </button>
-                    </div>
-                 </div>
-                 <p className="text-[10px] text-gray-600">This token is used once to create the repo and upload files. It is not saved.</p>
-             </div>
-             
-             <div className="flex flex-col gap-1">
-                 <label className="text-[10px] uppercase font-bold text-gray-500">Repository Name</label>
-                 <input 
-                    type="text" 
-                    placeholder="my-chore-tracker" 
-                    className="bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono"
-                    value={ghRepo}
-                    onChange={(e) => setGhRepo(e.target.value)}
-                 />
-             </div>
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <Github size={20} className="text-white" /> GitHub Integration </h2>
 
-             <div className="flex flex-col gap-1">
-                 <label className="text-[10px] uppercase font-bold text-gray-500">Target Branch</label>
-                 <div className="relative">
-                    <input 
-                        type="text" 
-                        placeholder="main" 
-                        className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono pl-10"
-                        value={ghBranch}
-                        onChange={(e) => setGhBranch(e.target.value)}
-                    />
-                    <GitBranch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
-                 </div>
-                 <p className="text-[10px] text-gray-600">If the branch doesn't exist, it will be created from the default branch.</p>
-             </div>
+        <div className="bg-gray-900/60 p-6 rounded-2xl border border-gray-800 space-y-4">
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase font-bold text-gray-500">Personal Access Token (Repo Scope)</label>
+            <div className="relative">
+              <input
+                type={showGhToken ? "text" : "password"}
+                placeholder="ghp_xxxxxxxxxxxx"
+                className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono pr-20"
+                value={ghToken}
+                onChange={(e) => setGhToken(e.target.value)}
+                autoComplete="off"
+                spellCheck="false"
+              />
+              <div className="absolute right-2 top-1/2 -translate-y-1/2 flex gap-1">
+                <button
+                  onClick={async () => {
+                    try {
+                      const text = await navigator.clipboard.readText();
+                      setGhToken(text);
+                    } catch (err) {
+                      alert("Clipboard access denied. Please type manually.");
+                    }
+                  }}
+                  className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 transition-colors"
+                  title="Paste"
+                >
+                  <Clipboard size={14} />
+                </button>
+                <button
+                  onClick={() => setShowGhToken(!showGhToken)}
+                  className="p-1.5 hover:bg-gray-700 rounded-lg text-gray-400 transition-colors"
+                >
+                  {showGhToken ? <EyeOff size={14} /> : <Eye size={14} />}
+                </button>
+              </div>
+            </div>
+            <p className="text-[10px] text-gray-600">This token is used once to create the repo and upload files. It is not saved.</p>
+          </div>
 
-             <button 
-                onClick={handleGithubUpload}
-                disabled={isUploading}
-                className="w-full bg-white hover:bg-gray-200 text-black py-3 rounded-xl text-sm font-bold transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-50"
-             >
-                 {isUploading ? <Activity className="animate-spin" size={16}/> : <Github size={16}/>}
-                 {isUploading ? 'Uploading Project...' : 'Create Repo & Upload Project'}
-             </button>
-         </div>
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase font-bold text-gray-500">Repository Name</label>
+            <input
+              type="text"
+              placeholder="my-chore-tracker"
+              className="bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono"
+              value={ghRepo}
+              onChange={(e) => setGhRepo(e.target.value)}
+            />
+          </div>
+
+          <div className="flex flex-col gap-1">
+            <label className="text-[10px] uppercase font-bold text-gray-500">Target Branch</label>
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="main"
+                className="w-full bg-black/40 border border-gray-800 rounded-xl px-4 py-3 text-sm text-white focus:border-white outline-none font-mono pl-10"
+                value={ghBranch}
+                onChange={(e) => setGhBranch(e.target.value)}
+              />
+              <GitBranch size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+            </div>
+            <p className="text-[10px] text-gray-600">If the branch doesn't exist, it will be created from the default branch.</p>
+          </div>
+
+          <button
+            onClick={handleGithubUpload}
+            disabled={isUploading}
+            className="w-full bg-white hover:bg-gray-200 text-black py-3 rounded-xl text-sm font-bold transition-all mt-2 flex items-center justify-center gap-2 disabled:opacity-50"
+          >
+            {isUploading ? <Activity className="animate-spin" size={16} /> : <Github size={16} />}
+            {isUploading ? 'Uploading Project...' : 'Create Repo & Upload Project'}
+          </button>
+        </div>
       </section>
 
       {/* Migration / Recovery Section */}
       <section className="bg-gray-800/40 border border-gray-800 rounded-3xl p-6">
-         <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <Database size={20} className="text-purple-500" /> Cloud Tools </h2>
-         
-         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-             {/* Export */}
-             <div className="bg-gray-900/60 p-5 rounded-2xl border border-gray-800">
-                 <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Download size={16} className="text-blue-500"/> Local Export</h3>
-                 <p className="text-[10px] text-gray-500 font-bold uppercase mb-4 leading-relaxed tracking-wide">Generate a secure JSON backup of your family data.</p>
-                 <button onClick={handleExport} className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl text-sm font-bold transition-all mb-3">
-                     <Copy size={14}/> Generate & Copy
-                 </button>
-                 {exportJson && (
-                    <div className="relative">
-                        <textarea 
-                            readOnly 
-                            className="w-full bg-black/40 border border-gray-800 rounded-xl text-[10px] text-gray-500 p-3 h-24 font-mono focus:outline-none scrollbar-hide"
-                            value={exportJson}
-                        />
-                        <button onClick={() => setExportJson('')} className="absolute top-2 right-2 text-gray-600 hover:text-white">
-                            <X size={14} />
-                        </button>
-                    </div>
-                 )}
-             </div>
+        <h2 className="text-sm font-black text-gray-400 uppercase tracking-widest mb-6 flex items-center gap-2"> <Database size={20} className="text-purple-500" /> Cloud Tools </h2>
 
-             {/* Import */}
-             <div className="bg-gray-900/60 p-5 rounded-2xl border border-gray-800">
-                 <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Upload size={16} className="text-purple-500"/> Restore Hub</h3>
-                 <p className="text-[10px] text-gray-500 font-bold uppercase mb-4 leading-relaxed tracking-wide">Import existing family structures via valid JSON.</p>
-                 <textarea 
-                    className="w-full bg-black/40 border border-gray-800 rounded-xl text-[10px] text-gray-300 p-3 h-24 mb-3 font-mono outline-none focus:border-purple-500"
-                    placeholder='Paste backup string...'
-                    value={importJson}
-                    onChange={(e) => setImportJson(e.target.value)}
-                 />
-                 <button 
-                    onClick={handleImport} 
-                    disabled={isImporting || !importJson}
-                    className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-800 disabled:text-gray-600 text-white py-3 rounded-xl text-sm font-bold transition-all"
-                 >
-                     {isImporting ? 'Processing...' : 'Restore Assets'}
-                 </button>
-             </div>
-         </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Export */}
+          <div className="bg-gray-900/60 p-5 rounded-2xl border border-gray-800">
+            <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Download size={16} className="text-blue-500" /> Local Export</h3>
+            <p className="text-[10px] text-gray-500 font-bold uppercase mb-4 leading-relaxed tracking-wide">Generate a secure JSON backup of your family data.</p>
+            <button onClick={handleExport} className="w-full flex items-center justify-center gap-2 bg-gray-800 hover:bg-gray-700 text-white py-3 rounded-xl text-sm font-bold transition-all mb-3">
+              <Copy size={14} /> Generate & Copy
+            </button>
+            {exportJson && (
+              <div className="relative">
+                <textarea
+                  readOnly
+                  className="w-full bg-black/40 border border-gray-800 rounded-xl text-[10px] text-gray-500 p-3 h-24 font-mono focus:outline-none scrollbar-hide"
+                  value={exportJson}
+                />
+                <button onClick={() => setExportJson('')} className="absolute top-2 right-2 text-gray-600 hover:text-white">
+                  <X size={14} />
+                </button>
+              </div>
+            )}
+          </div>
+
+          {/* Import */}
+          <div className="bg-gray-900/60 p-5 rounded-2xl border border-gray-800">
+            <h3 className="text-white font-bold mb-2 flex items-center gap-2"><Upload size={16} className="text-purple-500" /> Restore Hub</h3>
+            <p className="text-[10px] text-gray-500 font-bold uppercase mb-4 leading-relaxed tracking-wide">Import existing family structures via valid JSON.</p>
+            <textarea
+              className="w-full bg-black/40 border border-gray-800 rounded-xl text-[10px] text-gray-300 p-3 h-24 mb-3 font-mono outline-none focus:border-purple-500"
+              placeholder='Paste backup string...'
+              value={importJson}
+              onChange={(e) => setImportJson(e.target.value)}
+            />
+            <button
+              onClick={handleImport}
+              disabled={isImporting || !importJson}
+              className="w-full bg-purple-600 hover:bg-purple-500 disabled:bg-gray-800 disabled:text-gray-600 text-white py-3 rounded-xl text-sm font-bold transition-all"
+            >
+              {isImporting ? 'Processing...' : 'Restore Assets'}
+            </button>
+
+            {/* Quick Restore from Jan 16 Backup */}
+            <div className="mt-4 p-4 bg-emerald-900/20 rounded-xl border border-emerald-500/30">
+              <p className="text-xs text-emerald-300 mb-2 font-bold">⚡ QUICK RESTORE</p>
+              <p className="text-[10px] text-gray-400 mb-3">Instantly restore your household from January 16 backup (3 members, 17 chores, 59 logs)</p>
+              <button
+                onClick={async () => {
+                  setIsRestoring(true);
+                  try {
+                    const { restoreBackupData } = await import('./utils/restoreData');
+                    const result = await restoreBackupData(appId);
+                    if (result.success) {
+                      const saved = localStorage.getItem(`chore_data_${appId}`);
+                      if (saved) {
+                        const parsed = JSON.parse(saved);
+                        setMembers(parsed.members || []);
+                        setChores(parsed.chores || []);
+                        setLogs(parsed.logs || []);
+                      }
+                      alert(`✅ ${result.message}`);
+                    } else {
+                      alert(`❌ ${result.message}`);
+                    }
+                  } catch (error) {
+                    console.error('Restore error:', error);
+                    alert('❌ Restore failed');
+                  } finally {
+                    setIsRestoring(false);
+                  }
+                }}
+                disabled={isRestoring}
+                className="w-full bg-emerald-600 hover:bg-emerald-500 disabled:bg-gray-800 text-white py-2 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-2"
+              >
+                {isRestoring ? '⏳ Restoring...' : '⚡ Restore Jan 16 Backup'}
+              </button>
+            </div>
+          </div>
+        </div>
       </section>
-      
+
       <div className="text-center pt-8 border-t border-gray-800 text-gray-600 text-[10px] font-black uppercase tracking-widest">
-          Instance ID: {appId}
+        Instance ID: {appId}
       </div>
     </div>
   );
+
+  // Achievement checking logic
+  const checkAchievements = (memberId: string, currentLogs: ChoreLog[]) => {
+    const memberLogs = currentLogs.filter(l => l.memberId === memberId);
+    const memberXP = memberLogs.reduce((sum, log) => {
+      const chore = chores.find(c => c.id === log.choreId);
+      return sum + (chore?.xp || 0);
+    }, 0);
+
+    ACHIEVEMENTS.forEach(achievement => {
+      const alreadyUnlocked = memberAchievements.some(
+        ma => ma.memberId === memberId && ma.achievementId === achievement.id
+      );
+
+      if (!alreadyUnlocked) {
+        const progress = calculateAchievementProgress(
+          achievement,
+          memberLogs.map(l => ({ ...l, chore: chores.find(c => c.id === log.choreId) })),
+          memberXP,
+          members,
+          currentLogs
+        );
+
+        if (progress >= 100) {
+          const newAchievement: MemberAchievement = {
+            memberId,
+            achievementId: achievement.id,
+            unlockedAt: new Date(),
+            progress: 100
+          };
+
+          setMemberAchievements([...memberAchievements, newAchievement]);
+          setUnlockedAchievement(achievement);
+        }
+      }
+    });
+  };
+
+  // PWA Install handler
+  const handleInstallPWA = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      console.log('PWA installed');
+    }
+    setDeferredPrompt(null);
+    setShowInstallPrompt(false);
+  };
+
+  // Render Achievements View
+  const renderAchievements = () => {
+    const getMemberAchievementData = (memberId: string) => {
+      const memberLogs = logs.filter(l => l.memberId === memberId);
+      const memberXP = memberLogs.reduce((sum, log) => {
+        const chore = chores.find(c => c.id === log.choreId);
+        return sum + (chore?.xp || 0);
+      }, 0);
+
+      return ACHIEVEMENTS.map(achievement => {
+        const memberAchiev = memberAchievements.find(
+          ma => ma.memberId === memberId && ma.achievementId === achievement.id
+        );
+        const progress = calculateAchievementProgress(
+          achievement,
+          memberLogs.map(l => ({ ...l, chore: chores.find(c => c.id === log.choreId) })),
+          memberXP,
+          members,
+          logs
+        );
+
+        return {
+          achievement,
+          memberAchievement: memberAchiev,
+          progress
+        };
+      });
+    };
+
+    const currentMemberId = selectedAchievementMemberId || (members.length > 0 ? members[0].id : null);
+    const achievementData = currentMemberId ? getMemberAchievementData(currentMemberId) : [];
+    const unlockedCount = achievementData.filter(a => a.memberAchievement).length;
+
+    const groupedByTier = {
+      legendary: achievementData.filter(a => a.achievement.tier === 'legendary'),
+      platinum: achievementData.filter(a => a.achievement.tier === 'platinum'),
+      gold: achievementData.filter(a => a.achievement.tier === 'gold'),
+      silver: achievementData.filter(a => a.achievement.tier === 'silver'),
+      bronze: achievementData.filter(a => a.achievement.tier === 'bronze')
+    };
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={() => setView('dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 rounded-lg transition-colors border border-gray-700"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <Medal className="w-8 h-8 text-yellow-400" />
+              <h1 className="text-4xl font-black">Achievements</h1>
+            </div>
+
+            <div className="w-32" />
+          </div>
+
+          <div className="bg-gray-900/60 border border-gray-700 rounded-xl p-6 mb-8">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-gray-400 text-sm uppercase tracking-wide mb-1">Progress</div>
+                <div className="text-4xl font-black">
+                  {unlockedCount}/{ACHIEVEMENTS.length}
+                </div>
+              </div>
+              <div className="text-right">
+                <div className="text-gray-400 text-sm">Completion Rate</div>
+                <div className="text-2xl font-bold text-purple-400">
+                  {((unlockedCount / ACHIEVEMENTS.length) * 100).toFixed(1)}%
+                </div>
+              </div>
+            </div>
+            <div className="mt-4 h-3 bg-gray-800 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-purple-500 to-blue-500 transition-all duration-500"
+                style={{ width: `${(unlockedCount / ACHIEVEMENTS.length) * 100}%` }}
+              />
+            </div>
+          </div>
+
+          {members.length > 1 && (
+            <div className="flex gap-2 mb-6">
+              {members.map(member => (
+                <button
+                  key={member.id}
+                  onClick={() => setSelectedAchievementMemberId(member.id)}
+                  className="px-4 py-2 rounded-lg bg-gray-800/50 hover:bg-gray-700/50 border border-gray-700 transition-colors"
+                  style={{ borderColor: currentMemberId === member.id ? member.color : undefined }}
+                >
+                  {member.name}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {Object.entries(groupedByTier).map(([tier, achievements]) => {
+            if (achievements.length === 0) return null;
+
+            return (
+              <div key={tier} className="mb-8">
+                <h2 className="text-2xl font-bold mb-4 capitalize flex items-center gap-2">
+                  <Trophy className="w-6 h-6" />
+                  {tier} Achievements
+                  <span className="text-sm text-gray-400 font-normal">
+                    ({achievements.filter(a => a.memberAchievement).length}/{achievements.length})
+                  </span>
+                </h2>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {achievements.map(({ achievement, memberAchievement, progress }) => (
+                    <AchievementCard
+                      key={achievement.id}
+                      achievement={achievement}
+                      memberAchievement={memberAchievement}
+                      progress={progress}
+                    />
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {unlockedAchievement && (
+          <AchievementUnlockModal
+            achievement={unlockedAchievement}
+            onClose={() => setUnlockedAchievement(null)}
+          />
+        )}
+      </div>
+    );
+  };
+
+  // Render Analytics View
+  const renderAnalytics = () => {
+    const analytics = calculateAnalytics(logs, chores, members, analyticsPeriod);
+
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="flex items-center justify-between mb-8">
+            <button
+              onClick={() => setView('dashboard')}
+              className="flex items-center gap-2 px-4 py-2 bg-gray-800/50 hover:bg-gray-700/50 rounded-lg transition-colors border border-gray-700"
+            >
+              <ArrowLeft className="w-5 h-5" />
+              <span>Back</span>
+            </button>
+
+            <div className="flex items-center gap-3">
+              <BarChart3 className="w-8 h-8 text-blue-400" />
+              <h1 className="text-4xl font-black">Analytics</h1>
+            </div>
+
+            <div className="w-32" />
+          </div>
+
+          <div className="flex gap-2 mb-6">
+            {(['week', 'month', 'year', 'all'] as const).map(period => (
+              <button
+                key={period}
+                onClick={() => setAnalyticsPeriod(period)}
+                className={`
+                  px-4 py-2 rounded-lg font-semibold capitalize transition-all
+                  ${analyticsPeriod === period
+                    ? 'bg-purple-500 text-white'
+                    : 'bg-gray-800/50 text-gray-400 hover:bg-gray-700/50'
+                  }
+                `}
+              >
+                {period}
+              </button>
+            ))}
+          </div>
+
+          <AnalyticsCharts metrics={analytics} />
+        </div>
+      </div>
+    );
+  };
 
   return (
     <div className="min-h-screen bg-[#09090b] text-gray-200 p-4 pb-24 md:p-8">
@@ -1169,23 +1819,103 @@ const App: React.FC = () => {
         {view === 'chore_detail' && renderChoreDetail()}
         {view === 'settings' && renderSettings()}
         {view === 'stats' && renderStats()}
+        {view === 'achievements' && renderAchievements()}
+        {view === 'analytics' && renderAnalytics()}
       </div>
 
       {/* Persistent Bottom Nav for Mobile */}
       <nav className="fixed bottom-0 left-0 right-0 bg-gray-900/80 backdrop-blur-xl border-t border-gray-800 px-6 py-4 flex justify-around items-center md:hidden z-50">
-          <button onClick={() => setView('dashboard')} className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-blue-500' : 'text-gray-500'}`}>
-              <Activity size={20} />
-              <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
-          </button>
-          <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 ${view === 'stats' ? 'text-purple-500' : 'text-gray-500'}`}>
-              <Trophy size={20} />
-              <span className="text-[8px] font-black uppercase tracking-widest">Stats</span>
-          </button>
-          <button onClick={() => setView('settings')} className={`flex flex-col items-center gap-1 ${view === 'settings' ? 'text-gray-200' : 'text-gray-500'}`}>
-              <Settings size={20} />
-              <span className="text-[8px] font-black uppercase tracking-widest">Admin</span>
-          </button>
+        <button onClick={() => setView('dashboard')} className={`flex flex-col items-center gap-1 ${view === 'dashboard' ? 'text-blue-500' : 'text-gray-500'}`}>
+          <Activity size={20} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Home</span>
+        </button>
+        <button onClick={() => setView('stats')} className={`flex flex-col items-center gap-1 ${view === 'stats' ? 'text-purple-500' : 'text-gray-500'}`}>
+          <Trophy size={20} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Stats</span>
+        </button>
+        <button onClick={() => setView('settings')} className={`flex flex-col items-center gap-1 ${view === 'settings' ? 'text-gray-200' : 'text-gray-500'}`}>
+          <Settings size={20} />
+          <span className="text-[8px] font-black uppercase tracking-widest">Admin</span>
+        </button>
       </nav>
+
+      {/* Modals and Special Components */}
+      {showConfetti && <Confetti show={showConfetti} />}
+
+      {showLevelUpModal && levelUpMember && levelUpData && (
+        <LevelUpModal
+          member={levelUpMember}
+          oldLevel={levelUpData.oldLevel}
+          newLevel={levelUpData.newLevel}
+          xp={levelUpData.xp}
+          newSkills={levelUpData.newSkills}
+          onClose={() => setShowLevelUpModal(false)}
+        />
+      )}
+
+      {showSkillsDashboard && selectedMemberId && (
+        (() => {
+          const member = members.find(m => m.id === selectedMemberId);
+          if (!member) return null;
+
+          // Calculate skill levels from member's logs
+          const memberLogs = logs.filter(l => l.memberId === selectedMemberId);
+          const skillLevels: Record<string, number> = {
+            cleaning: 1,
+            cooking: 1,
+            maintenance: 1,
+            'pet-care': 1,
+            outdoor: 1
+          };
+
+          // Count completions by category to determine skill levels
+          memberLogs.forEach(log => {
+            const chore = chores.find(c => c.id === log.choreId);
+            if (chore?.category) {
+              const category = chore.category.toLowerCase();
+              if (skillLevels[category] !== undefined) {
+                skillLevels[category] = (skillLevels[category] || 1) + 0.1;
+              }
+            }
+          });
+
+          const totalXP = (member as any).totalXP || 0;
+
+          return (
+            <SkillsDashboard
+              memberName={member.name}
+              skillLevels={skillLevels as any}
+              totalXP={totalXP}
+              onBack={() => {
+                setShowSkillsDashboard(false);
+                setSelectedMemberId(null);
+              }}
+            />
+          );
+        })()
+      )}
+
+      {showAvatarSelector && (
+        <AvatarSelector
+          onSelect={(avatar) => {
+            setNewMemberAvatar(avatar);
+            setShowAvatarSelector(false);
+          }}
+          onClose={() => setShowAvatarSelector(false)}
+        />
+      )}
+
+      {showAchievementModal && unlockedAchievement && unlockedMember && (
+        <AchievementUnlockModal
+          achievement={unlockedAchievement}
+          member={unlockedMember}
+          onClose={() => {
+            setShowAchievementModal(false);
+            setUnlockedAchievement(null);
+            setUnlockedMember(null);
+          }}
+        />
+      )}
     </div>
   );
 };
