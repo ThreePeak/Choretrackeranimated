@@ -74,6 +74,7 @@ import { ACHIEVEMENTS, calculateAchievementProgress } from './achievements';
 import { calculateAnalytics } from './utils/advancedAnalytics';
 
 const App: React.FC = () => {
+  console.log('🟢 APP COMPONENT LOADING...');
   const [view, setView] = useState<AppView>('dashboard');
   const [activeChoreId, setActiveChoreId] = useState<string | null>(null);
 
@@ -81,10 +82,51 @@ const App: React.FC = () => {
   const [manualAppId, setManualAppId] = useState("");
   const appId = manualAppId.trim() !== "" ? manualAppId.trim() : "default-family-id";
 
-  // Data State
-  const [members, setMembers] = useState<Member[]>([]);
-  const [chores, setChores] = useState<Chore[]>([]);
-  const [logs, setLogs] = useState<ChoreLog[]>([]);
+  // Data State - Initialize from localStorage
+  const [members, setMembers] = useState<Member[]>(() => {
+    const appId = "default-family-id";
+    const saved = localStorage.getItem(`chore_data_${appId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.members || [];
+      } catch (e) {
+        console.error('Failed to parse saved members:', e);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const [chores, setChores] = useState<Chore[]>(() => {
+    const appId = "default-family-id";
+    const saved = localStorage.getItem(`chore_data_${appId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.chores || [];
+      } catch (e) {
+        console.error('Failed to parse saved chores:', e);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  const [logs, setLogs] = useState<ChoreLog[]>(() => {
+    const appId = "default-family-id";
+    const saved = localStorage.getItem(`chore_data_${appId}`);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        return parsed.logs || [];
+      } catch (e) {
+        console.error('Failed to parse saved logs:', e);
+        return [];
+      }
+    }
+    return [];
+  });
 
   // Inputs
   const [newMemberName, setNewMemberName] = useState('');
@@ -199,19 +241,7 @@ const App: React.FC = () => {
     }
   };
 
-  // Persistence Simulation
-  useEffect(() => {
-    const saved = localStorage.getItem(`chore_data_${appId}`);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      setMembers(parsed.members || []);
-      setChores(parsed.chores || []);
-      setLogs(parsed.logs || []);
-    } else {
-      setMembers([]); setChores([]); setLogs([]);
-    }
-  }, [appId]);
-
+  // Save to localStorage whenever data changes
   useEffect(() => {
     const data = { members, chores, logs };
     localStorage.setItem(`chore_data_${appId}`, JSON.stringify(data));
@@ -1643,7 +1673,7 @@ const App: React.FC = () => {
         );
         const progress = calculateAchievementProgress(
           achievement,
-          memberLogs.map(l => ({ ...l, chore: chores.find(c => c.id === log.choreId) })),
+          memberLogs.map(l => ({ ...l, chore: chores.find(c => c.id === l.choreId) })),
           memberXP,
           members,
           logs
@@ -1766,7 +1796,7 @@ const App: React.FC = () => {
 
   // Render Analytics View
   const renderAnalytics = () => {
-    const analytics = calculateAnalytics(logs, chores, members, analyticsPeriod);
+    const analytics = calculateAnalytics(logs, members, chores, analyticsPeriod);
 
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-900 via-purple-900 to-slate-900 text-white p-6">
