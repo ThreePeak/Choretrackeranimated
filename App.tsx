@@ -68,7 +68,7 @@ import { FamilyRoster } from './components/FamilyRoster';
 import { PROJECT_FILES } from './projectFiles';
 import { getDifficultyXP, getDifficultyStars, getDifficultyColor, DIFFICULTY_XP_MAP } from './utils/difficulty';
 import type { DifficultyTier } from './types';
-import { database, ref, set, onValue, off } from './firebase';
+import * as dataService from './services/dataService';
 import { SEED_DATA } from './seedData';
 import { ACHIEVEMENTS, calculateAchievementProgress } from './achievements';
 import { calculateAnalytics } from './utils/advancedAnalytics';
@@ -241,11 +241,68 @@ const App: React.FC = () => {
     }
   };
 
-  // Save to localStorage whenever data changes
+  // Initial data load from Supabase on mount
   useEffect(() => {
-    const data = { members, chores, logs };
-    localStorage.setItem(`chore_data_${appId}`, JSON.stringify(data));
-  }, [members, chores, logs, appId, memberAchievements]);
+    const loadData = async () => {
+      console.log('📥 Loading data from Supabase...');
+      const result = await dataService.loadAllData();
+
+      if (result.success) {
+        console.log('✅ Data loaded from Supabase:', {
+          members: result.members.length,
+          chores: result.chores.length,
+          logs: result.logs.length,
+        });
+        setMembers(result.members);
+        setChores(result.chores);
+        setLogs(result.logs);
+        setMemberAchievements(result.achievements);
+
+        // Also save to localStorage as cache
+        const data = { members: result.members, chores: result.chores, logs: result.logs };
+        localStorage.setItem(`chore_data_${appId}`, JSON.stringify(data));
+      } else {
+        console.warn('⚠️ Failed to load from Supabase, trying localStorage fallback...');
+        // Fallback to localStorage if Supabase fails
+        const saved = localStorage.getItem(`chore_data_${appId}`);
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved);
+            setMembers(parsed.members || []);
+            setChores(parsed.chores || []);
+            setLogs(parsed.logs || []);
+          } catch (e) {
+            console.error('Failed to parse localStorage:', e);
+          }
+        }
+      }
+    };
+
+    loadData();
+  }, [appId]);
+
+  // Auto-save to Supabase (debounced) AND localStorage whenever data changes
+  useEffect(() => {
+    const saveData = async () => {
+      // Save to localStorage immediately (synchronous cache)
+      const data = { members, chores, logs };
+      localStorage.setItem(`chore_data_${appId}`, JSON.stringify(data));
+
+      // Debounced save to Supabase
+      const timer = setTimeout(async () => {
+        console.log('💾 Auto-saving to Supabase...');
+        await dataService.saveAllData(members, chores, logs, memberAchievements);
+        console.log('✅ Auto-save complete');
+      }, 500); // 500ms debounce
+
+      return () => clearTimeout(timer);
+    };
+
+    // Only save if we have data (avoid saving empty state on mount)
+    if (members.length > 0 || chores.length > 0 || logs.length > 0) {
+      saveData();
+    }
+  }, [members, chores, logs, memberAchievements, appId]);
 
   // PWA Install Prompt Detection
   useEffect(() => {

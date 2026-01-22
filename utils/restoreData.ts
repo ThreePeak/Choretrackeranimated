@@ -1,4 +1,4 @@
-import { database, ref, set } from '../firebase';
+import * as dataService from '../services/dataService';
 import { BACKUP_DATA_JAN_16, enhanceChoresWithMetadata, enhanceMembersWithXP } from './dataRestoration';
 import { BACKUP_LOGS } from '../backupLogs';
 
@@ -19,14 +19,18 @@ export const restoreBackupData = async (appId: string) => {
       enhancedChores
     );
 
-    // Restore to localStorage (since app uses localStorage)
+    // Restore to Supabase AND localStorage
     const dataToRestore = {
       members: enhancedMembers,
       chores: enhancedChores,
       logs: BACKUP_LOGS
     };
 
+    // Save to localStorage
     localStorage.setItem(`chore_data_${appId}`, JSON.stringify(dataToRestore));
+
+    // Save to Supabase
+    await dataService.saveAllData(enhancedMembers, enhancedChores, BACKUP_LOGS as any[], []);
 
     console.log('Data restoration complete!');
     console.log('Members:', enhancedMembers.length);
